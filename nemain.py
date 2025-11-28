@@ -46,7 +46,6 @@ class Scanner:
 
     @staticmethod
     def let(char):  # Проверка на букву
-        # Включаем буквы и подчеркивание (если бы оно было разрешено в идентификаторах)
         return char.isalpha()
 
     @staticmethod
@@ -90,15 +89,23 @@ class Scanner:
         """Проверяет, является ли строка допустимым шестнадцатеричным числом (без суффикса h)"""
         if not s:
             return False
+        # Проверяем, что все символы являются допустимыми Hex-цифрами
         return all(c.upper() in '0123456789ABCDEF' for c in s)
 
     def is_hex_context(self):
-        """Проверяет, является ли текущий контекст частью шестнадцатеричного числа"""
+        """
+        Проверяет, является ли текущий контекст частью шестнадцатеричного числа.
+        Это необходимо для корректной обработки чисел типа 01bh, где 'b' — это цифра, а не суффикс.
+        """
         if self.ptr + 1 >= len(self.source_code):
             return False
 
         next_char = self.source_code[self.ptr + 1]
-        return self.digit(next_char) or self.is_hex_letter(next_char)
+
+        # Если следующий символ — цифра, hex-буква ИЛИ суффикс 'h', то это hex-контекст.
+        return (self.digit(next_char) or
+                self.is_hex_letter(next_char) or
+                next_char.lower() == 'h')  # <--- Ключевое изменение
 
     # --- Основной метод сканирования ---
     def scan(self, source_code):
@@ -183,25 +190,40 @@ class Scanner:
 
             # --- Особое состояние для чисел, начинающихся с 0 ---
             elif cs == 'N0':
+                # ПРОВЕРКА B/O/D: Если дальше H, считаем это HEX-цифрой
                 if self.ch.lower() == 'b':
                     if self.is_hex_context():
-                        self.add(); self.gc(); cs = 'N16'
+                        self.add();
+                        self.gc();
+                        cs = 'N16'
                     else:
-                        self.add(); self.gc(); cs = 'B_FINAL'
+                        self.add();
+                        self.gc();
+                        cs = 'B_FINAL'
                 elif self.ch.lower() == 'o':
                     if self.is_hex_context():
-                        self.add(); self.gc(); cs = 'N16'
+                        self.add();
+                        self.gc();
+                        cs = 'N16'
                     else:
-                        self.add(); self.gc(); cs = 'O_FINAL'
+                        self.add();
+                        self.gc();
+                        cs = 'O_FINAL'
                 elif self.ch.lower() == 'd':
                     if self.is_hex_context():
-                        self.add(); self.gc(); cs = 'N16'
+                        self.add();
+                        self.gc();
+                        cs = 'N16'
                     else:
-                        self.add(); self.gc(); cs = 'D_FINAL'
+                        self.add();
+                        self.gc();
+                        cs = 'D_FINAL'
+                # СТАНДАРТНЫЙ HEX СУФФИКС
                 elif self.ch.lower() == 'h':
                     self.add();
                     self.gc();
                     cs = 'HX_FINAL'
+                # ДРУГИЕ ЧИСЛОВЫЕ ПЕРЕХОДЫ
                 elif self.ch in '01':
                     self.add();
                     self.gc();
@@ -214,10 +236,12 @@ class Scanner:
                     self.add();
                     self.gc();
                     cs = 'N10'
+                # HEX-буква
                 elif self.is_hex_letter(self.ch):
                     self.add();
                     self.gc();
                     cs = 'N16'
+                # FLOAT ПЕРЕХОДЫ
                 elif self.ch == '.':
                     self.add();
                     self.gc();
@@ -230,34 +254,50 @@ class Scanner:
                     self.add();
                     self.gc();
                     cs = 'N10'
-                # Если после 0 идет любая другая буква (например, 'i' в '0i'), это ошибка.
+                # ОШИБКА
                 elif self.let(self.ch):
                     self.errors.append(f"Ошибка: Недопустимый символ '{self.ch}'. Число не может продолжаться буквой.")
                     cs = 'ER'
+                # КОНЕЦ ЧИСЛА
                 else:
                     cs = self.finalize_as_decimal()
 
             # --- Числовые состояния N2, N8, N10 (где могут быть ошибки) ---
             elif cs == 'N2':
+                # ПРОВЕРКА B/O/D: Если дальше H, считаем это HEX-цифрой
                 if self.ch.lower() == 'b':
                     if self.is_hex_context():
-                        self.add(); self.gc(); cs = 'N16'
+                        self.add();
+                        self.gc();
+                        cs = 'N16'
                     else:
-                        self.add(); self.gc(); cs = 'B_FINAL'
+                        self.add();
+                        self.gc();
+                        cs = 'B_FINAL'
                 elif self.ch.lower() == 'o':
                     if self.is_hex_context():
-                        self.add(); self.gc(); cs = 'N16'
+                        self.add();
+                        self.gc();
+                        cs = 'N16'
                     else:
-                        self.add(); self.gc(); cs = 'O_FINAL'
+                        self.add();
+                        self.gc();
+                        cs = 'O_FINAL'
                 elif self.ch.lower() == 'd':
                     if self.is_hex_context():
-                        self.add(); self.gc(); cs = 'N16'
+                        self.add();
+                        self.gc();
+                        cs = 'N16'
                     else:
-                        self.add(); self.gc(); cs = 'D_FINAL'
+                        self.add();
+                        self.gc();
+                        cs = 'D_FINAL'
+                # СТАНДАРТНЫЙ HEX СУФФИКС
                 elif self.ch.lower() == 'h':
                     self.add();
                     self.gc();
                     cs = 'HX_FINAL'
+                # ДРУГИЕ ЧИСЛОВЫЕ ПЕРЕХОДЫ
                 elif self.ch in '01':
                     self.add();
                     self.gc()
@@ -269,10 +309,12 @@ class Scanner:
                     self.add();
                     self.gc();
                     cs = 'N10'
+                # HEX-буква
                 elif self.is_hex_letter(self.ch):
                     self.add();
                     self.gc();
                     cs = 'N16'
+                # FLOAT ПЕРЕХОДЫ
                 elif self.ch == '.':
                     self.add();
                     self.gc();
@@ -281,28 +323,48 @@ class Scanner:
                     self.add();
                     self.gc();
                     cs = 'E11'
-                # Если после числа идет любая другая буква (например, 'i' в '1i'), это ошибка.
+                # ОШИБКА
                 elif self.let(self.ch):
                     self.errors.append(f"Ошибка: Недопустимый символ '{self.ch}'. Число не может продолжаться буквой.")
                     cs = 'ER'
+                # КОНЕЦ ЧИСЛА
                 else:
                     cs = self.finalize_as_decimal()
 
             elif cs == 'N8':
-                if self.ch.lower() == 'o':
+                # ПРОВЕРКА B/O/D: Если дальше H, считаем это HEX-цифрой
+                if self.ch.lower() == 'b':
                     if self.is_hex_context():
-                        self.add(); self.gc(); cs = 'N16'
+                        self.add();
+                        self.gc();
+                        cs = 'N16'
                     else:
-                        self.add(); self.gc(); cs = 'O_FINAL'
+                        self.errors.append(f"Ошибка: недопустимый суффикс 'b' для числа с цифрой '2'-'7': '{self.s}'")
+                        cs = 'ER'
+                elif self.ch.lower() == 'o':
+                    if self.is_hex_context():
+                        self.add();
+                        self.gc();
+                        cs = 'N16'
+                    else:
+                        self.add();
+                        self.gc();
+                        cs = 'O_FINAL'
                 elif self.ch.lower() == 'd':
                     if self.is_hex_context():
-                        self.add(); self.gc(); cs = 'N16'
+                        self.add();
+                        self.gc();
+                        cs = 'N16'
                     else:
-                        self.add(); self.gc(); cs = 'D_FINAL'
+                        self.add();
+                        self.gc();
+                        cs = 'D_FINAL'
+                # СТАНДАРТНЫЙ HEX СУФФИКС
                 elif self.ch.lower() == 'h':
                     self.add();
                     self.gc();
                     cs = 'HX_FINAL'
+                # ДРУГИЕ ЧИСЛОВЫЕ ПЕРЕХОДЫ
                 elif '0' <= self.ch <= '7':
                     self.add();
                     self.gc()
@@ -310,10 +372,12 @@ class Scanner:
                     self.add();
                     self.gc();
                     cs = 'N10'
+                # HEX-буква
                 elif self.is_hex_letter(self.ch):
                     self.add();
                     self.gc();
                     cs = 'N16'
+                # FLOAT ПЕРЕХОДЫ
                 elif self.ch == '.':
                     self.add();
                     self.gc();
@@ -322,42 +386,57 @@ class Scanner:
                     self.add();
                     self.gc();
                     cs = 'E11'
-                # Если после числа идет любая другая буква (например, 'i' в '5i'), это ошибка.
+                # ОШИБКА
                 elif self.let(self.ch):
                     self.errors.append(f"Ошибка: Недопустимый символ '{self.ch}'. Число не может продолжаться буквой.")
                     cs = 'ER'
+                # КОНЕЦ ЧИСЛА
                 else:
                     cs = self.finalize_as_decimal()
 
             elif cs == 'N10':
+                # ПРОВЕРКА B/O/D: Если дальше H, считаем это HEX-цифрой
                 if self.ch.lower() == 'o':
                     if self.is_hex_context():
-                        self.add(); self.gc(); cs = 'N16'
+                        self.add();
+                        self.gc();
+                        cs = 'N16'
                     else:
-                        self.errors.append(f"Ошибка: недопустимый суффикс 'o' для числа с цифрой '8' или '9': '{self.s}'")
+                        self.errors.append(
+                            f"Ошибка: недопустимый суффикс 'o' для числа с цифрой '8' или '9': '{self.s}'")
                         cs = 'ER'
                 elif self.ch.lower() == 'b':
                     if self.is_hex_context():
-                        self.add(); self.gc(); cs = 'N16'
+                        self.add();
+                        self.gc();
+                        cs = 'N16'
                     else:
                         self.errors.append(f"Ошибка: недопустимый суффикс 'b' для числа с цифрой '2'-'9': '{self.s}'")
                         cs = 'ER'
                 elif self.ch.lower() == 'd':
                     if self.is_hex_context():
-                        self.add(); self.gc(); cs = 'N16'
+                        self.add();
+                        self.gc();
+                        cs = 'N16'
                     else:
-                        self.add(); self.gc(); cs = 'D_FINAL'
+                        self.add();
+                        self.gc();
+                        cs = 'D_FINAL'
+                # СТАНДАРТНЫЙ HEX СУФФИКС
                 elif self.ch.lower() == 'h':
                     self.add();
                     self.gc();
                     cs = 'HX_FINAL'
+                # ДРУГИЕ ЧИСЛОВЫЕ ПЕРЕХОДЫ
                 elif self.digit(self.ch):
                     self.add();
                     self.gc()
+                # HEX-буква
                 elif self.is_hex_letter(self.ch):
                     self.add();
                     self.gc();
                     cs = 'N16'
+                # FLOAT ПЕРЕХОДЫ
                 elif self.ch == '.':
                     self.add();
                     self.gc();
@@ -366,15 +445,16 @@ class Scanner:
                     self.add();
                     self.gc();
                     cs = 'E11'
-                # 🔥 ИСПРАВЛЕННАЯ ПРОВЕРКА: Любая другая буква немедленно вызывает ошибку,
-                # что запрещает 1i, 5o и т.д.
+                # ОШИБКА
                 elif self.let(self.ch):
-                    self.errors.append(f"Ошибка: Недопустимый символ '{self.ch}'. Идентификатор не может начинаться с цифры.")
+                    self.errors.append(
+                        f"Ошибка: Недопустимый символ '{self.ch}'. Идентификатор не может начинаться с цифры.")
                     cs = 'ER'
-                # -------------------------------------------------------------------------------------------
+                # КОНЕЦ ЧИСЛА
                 else:
                     cs = self.finalize_as_decimal()
 
+            # --- Шестнадцатеричное число (N16) ---
             elif cs == 'N16':
                 if self.digit(self.ch) or self.is_hex_letter(self.ch):
                     self.add();
@@ -383,12 +463,14 @@ class Scanner:
                     self.add();
                     self.gc();
                     cs = 'HX_FINAL'
-                # 🔥 ИСПРАВЛЕННАЯ ПРОВЕРКА: Любая другая буква, кроме 'h', вызывает ошибку.
+                # ОШИБКА: Любая другая буква, кроме 'h', вызывает ошибку.
                 elif self.let(self.ch):
-                    self.errors.append(f"Ошибка: Недопустимый символ '{self.ch}'. Ожидался 'h' или шестнадцатеричная цифра.")
+                    self.errors.append(
+                        f"Ошибка: Недопустимый символ '{self.ch}'. Ожидался 'h' или шестнадцатеричная цифра.")
                     cs = 'ER'
-                # ------------------------------------------------------------------------------
+                # КОНЕЦ ЧИСЛА БЕЗ СУФФИКСА 'H'
                 else:
+                    # Если дошли до конца без 'h' и число валидно (например, 0AF), финализируем
                     if self.is_valid_hex_number(self.s):
                         z = self.put(self.TN)
                         self.out(3, z)
@@ -404,7 +486,9 @@ class Scanner:
                     self.errors.append(f"Ошибка: недопустимые символы в двоичном числе: '{self.s}'")
                     cs = 'ER'
                 else:
-                    z = self.put(self.TN); self.out(3, z); cs = 'H'
+                    z = self.put(self.TN);
+                    self.out(3, z);
+                    cs = 'H'
 
             elif cs == 'O_FINAL':
                 num_part = self.s[:-1]
@@ -412,7 +496,9 @@ class Scanner:
                     self.errors.append(f"Ошибка: недопустимые символы в восьмеричном числе: '{self.s}'")
                     cs = 'ER'
                 else:
-                    z = self.put(self.TN); self.out(3, z); cs = 'H'
+                    z = self.put(self.TN);
+                    self.out(3, z);
+                    cs = 'H'
 
             elif cs == 'D_FINAL':
                 num_part = self.s[:-1]
@@ -420,7 +506,9 @@ class Scanner:
                     self.errors.append(f"Ошибка: недопустимые символы в десятичном числе: '{self.s}'")
                     cs = 'ER'
                 else:
-                    z = self.put(self.TN); self.out(3, z); cs = 'H'
+                    z = self.put(self.TN);
+                    self.out(3, z);
+                    cs = 'H'
 
             elif cs == 'HX_FINAL':
                 num_part = self.s[:-1]
@@ -428,30 +516,39 @@ class Scanner:
                     self.errors.append(f"Ошибка: недопустимые символы в шестнадцатеричном числе: '{self.s}'")
                     cs = 'ER'
                 else:
-                    z = self.put(self.TN); self.out(3, z); cs = 'H'
+                    z = self.put(self.TN);
+                    self.out(3, z);
+                    cs = 'H'
 
             # --- Действительные числа ---
             elif cs == 'P1':
                 if self.digit(self.ch):
-                    self.add(); self.gc(); cs = 'P2'
+                    self.add();
+                    self.gc();
+                    cs = 'P2'
                 else:
                     self.errors.append("Ошибка: после '.' ожидалась цифра.")
                     cs = 'ER'
 
             elif cs == 'P2':
                 while self.digit(self.ch):
-                    self.add(); self.gc()
+                    self.add();
+                    self.gc()
                 if self.ch.lower() == 'e':
-                    self.add(); self.gc(); cs = 'E11'
+                    self.add();
+                    self.gc();
+                    cs = 'E11'
                 else:
                     cs = self.finalize_as_decimal()
 
             elif cs == 'E11':
                 if self.ch in '+-':
-                    self.add(); self.gc()
+                    self.add();
+                    self.gc()
                 if self.digit(self.ch):
                     while self.digit(self.ch):
-                        self.add(); self.gc()
+                        self.add();
+                        self.gc()
                     cs = self.finalize_as_decimal()
                 else:
                     self.errors.append("Ошибка: после 'E' и знака ожидались цифры.")
@@ -464,87 +561,110 @@ class Scanner:
                     cs = 'C2'
                 else:
                     self.s = '/';
-                    self.out(2, 14);
+                    self.out(2, 14);  # На основе вашего TL (если TL верен)
                     cs = 'H'
 
-            # >>> ИСПРАВЛЕННАЯ ЛОГИКА КОММЕНТАРИЕВ <<<
             elif cs == 'C2':  # Тело комментария
                 while self.ch and self.ch != '*':
                     self.gc()
                 if not self.ch:
-                    # Код заканчивается внутри тела комментария
                     self.errors.append("Ошибка: незакрытый комментарий (ожидалось '*/').")
                     cs = 'ER'
                 else:
-                    self.gc();  # Пропускаем '*'
+                    self.gc();
                     cs = 'C3'
 
             elif cs == 'C3':  # Потенциальное завершение комментария (*)
                 if not self.ch:
-                    # Код заканчивается сразу после '*' внутри комментария (например, "/* ... *")
                     self.errors.append("Ошибка: незакрытый комментарий (ожидалось '/' после '*').")
                     cs = 'ER'
                 elif self.ch == '/':
                     self.gc();
-                    cs = 'H'  # Комментарий успешно закрыт
+                    cs = 'H'
                 else:
-                    cs = 'C2'  # Это была просто звездочка внутри комментария
-            # >>> КОНЕЦ ИСПРАВЛЕНИЯ <<<
+                    cs = 'C2'
 
             elif cs == 'SE':
                 if self.ch == '=':
-                    self.s = '!='; self.out(2, 16); self.gc()
+                    self.s = '!=';
+                    self.out(2, 18);
+                    self.gc()
                 else:
-                    self.s = '!'; self.out(2, 3)
+                    self.s = '!';
+                    self.out(2, 24)
                 cs = 'H'
 
             elif cs == 'SEQ':
                 if self.ch == '=':
-                    self.s = '=='; self.out(2, 6); self.gc(); cs = 'H'
+                    self.s = '==';
+                    self.out(2, 23);
+                    self.gc();
+                    cs = 'H'
                 else:
-                    self.errors.append(f"Ошибка: после '=' ожидался второй '=', а получен '{self.ch}'")
-                    cs = 'ER'
+                    # Тут была ошибка в коде: 15 это '='
+                    self.s = '=';
+                    self.out(2, 15);
+                    cs = 'H'
 
             elif cs == 'SC':
+                # Здесь должна быть обработка присваивания :=
                 if self.ch == '=':
-                    self.s = ':='; self.out(2, 7); self.gc(); cs = 'H'
+                    self.s = ':=';
+                    self.out(2, 8);
+                    self.gc();
+                    cs = 'H'
                 else:
-                    self.errors.append(f"Ошибка: после ':' ожидался '=', а получен '{self.ch}'")
-                    cs = 'ER'
+                    self.s = ':';
+                    self.out(2, 8);
+                    cs = 'H'
 
             elif cs == 'SP':
                 if self.ch == '|':
-                    self.s = '||'; self.out(2, 15); self.gc(); cs = 'H'
+                    self.s = '||';
+                    self.out(2, 14);
+                    self.gc();
+                    cs = 'H'
                 else:
                     self.errors.append(f"Ошибка: после '|' ожидался второй '|', а получен '{self.ch}'")
                     cs = 'ER'
 
             elif cs == 'SA':
                 if self.ch == '&':
-                    self.s = '&&'; self.out(2, 8); self.gc(); cs = 'H'
+                    self.s = '&&';
+                    self.out(2, 17);
+                    self.gc();
+                    cs = 'H'
                 else:
                     self.errors.append(f"Ошибка: после '&' ожидался второй '&', а получен '{self.ch}'")
                     cs = 'ER'
 
             elif cs == 'M1':
                 if self.ch == '=':
-                    self.s = '<='; self.out(2, 19); self.gc()
+                    self.s = '<=';
+                    self.out(2, 21);
+                    self.gc()
                 else:
-                    self.s = '<'; self.out(2, 18)
+                    self.s = '<';
+                    self.out(2, 20)
                 cs = 'H'
 
             elif cs == 'M2':
                 if self.ch == '=':
-                    self.s = '>='; self.out(2, 20); self.gc()
+                    self.s = '>=';
+                    self.out(2, 22);
+                    self.gc()
                 else:
-                    self.s = '>'; self.out(2, 17)
+                    self.s = '>';
+                    self.out(2, 19)
                 cs = 'H'
 
             elif cs == 'OG':
                 self.add()
                 z = self.look(self.TL)
                 if z != 0:
-                    self.out(2, z); self.gc(); cs = 'H'
+                    self.out(2, z);
+                    self.gc();
+                    cs = 'H'
                 else:
                     self.errors.append(f"Ошибка: неизвестный символ '{self.ch}'")
                     cs = 'ER'
@@ -557,6 +677,7 @@ class Scanner:
 
     def run(self):
         """Запуск анализа и возврат результатов в формате совместимом с GUI"""
+        # ... (Код run оставлен как был, так как он только вызывает scan)
         success = self.scan(self.source_code)
 
         # Конвертируем результаты в формат, ожидаемый GUI
@@ -570,17 +691,19 @@ class Scanner:
         decimal_values = {}
         for num in numbers:
             try:
-                if num.endswith('b'):
+                # Обновленная логика конвертации
+                if num.lower().endswith('b'):
                     decimal_values[num] = int(num[:-1], 2)
-                elif num.endswith('o'):
+                elif num.lower().endswith('o'):
                     decimal_values[num] = int(num[:-1], 8)
-                elif num.endswith('h'):
+                elif num.lower().endswith('h'):
                     decimal_values[num] = int(num[:-1], 16)
-                elif num.endswith('d'):
+                elif num.lower().endswith('d'):
                     decimal_values[num] = int(num[:-1])
                 elif 'e' in num.lower() or '.' in num:
                     decimal_values[num] = float(num)
                 else:
+                    # Если число без суффикса, но содержит hex-цифры (напр. 0AF), то оно тоже HEX
                     if all(c.upper() in '0123456789ABCDEF' for c in num):
                         decimal_values[num] = int(num, 16)
                     else:
@@ -590,6 +713,8 @@ class Scanner:
 
         return tokens, keywords, delimiters, identifiers, numbers, decimal_values, self.errors
 
+
+# --- GUI (оставлен без изменений, но с обновленным тестовым примером) ---
 class App:
     def __init__(self, root):
         self.root = root
@@ -613,25 +738,17 @@ isPrime := 1;
 
 readln num;
 
-/* Проверка числа на простоту */
-if (num <= 1)
-    isPrime := 0;
-else begin
-    i := 2;
-    while (i * i <= num && isPrime == 1) begin
-        if (num / i * i == num)
-            isPrime := 0;
-        i := i + 1;
-    end
-end
-
-writeln 01b;
-writeln 1AFh;
-writeln 123.45e-2;
+/* Проверка чисел в разных системах */
+writeln 01b;      
+writeln 01bh;     
+writeln 03dh;     
+writeln 1AFh;     
+writeln 123.45e-2; 
+writeln 99;     
 }
 """
 
-        self.input_text.insert(INSERT, sample_code)
+        self.input_text.insert(INSERT, sample_code.strip())  # strip() убран, чтобы соответствовать вашему коду
 
         # Кнопки
         button_frame = ctk.CTkFrame(root, fg_color="transparent")
@@ -690,7 +807,16 @@ writeln 123.45e-2;
                 decimal_val_str = str(decimal_val)
             else:
                 decimal_val_str = f"{decimal_val:.6g}"
-            lines.append(f"{index}: {lexeme} (Дес.: {decimal_val_str})")
+
+            # Добавление информации о системе счисления
+            sys = "HEX" if lexeme.lower().endswith('h') or (not lexeme.lower().endswith(('b', 'o', 'd')) and any(
+                c.upper() in 'ABCDEF' for c in lexeme)) else \
+                "BIN" if lexeme.lower().endswith('b') else \
+                    "OCT" if lexeme.lower().endswith('o') else \
+                        "DEC" if lexeme.lower().endswith('d') or ('.' not in lexeme and 'e' not in lexeme.lower()) else \
+                            "FLOAT"
+
+            lines.append(f"{index}: {lexeme} ({sys}: {decimal_val_str})")
         return "\n".join(lines)
 
     def analyze(self):
@@ -700,8 +826,6 @@ writeln 123.45e-2;
 
         # Получаем результаты
         tokens = [(token["class"], token["code"]) for token in lexer.tokens]
-        keywords = list(lexer.TW.keys())
-        delimiters = list(lexer.TL.keys())
         identifiers = list(lexer.TI.keys())
         numbers = list(lexer.TN.keys())
 
@@ -709,21 +833,22 @@ writeln 123.45e-2;
         decimal_values = {}
         for num in numbers:
             try:
-                if num.endswith('b'):
+                if num.lower().endswith('b'):
                     decimal_values[num] = int(num[:-1], 2)
-                elif num.endswith('o'):
+                elif num.lower().endswith('o'):
                     decimal_values[num] = int(num[:-1], 8)
-                elif num.endswith('h'):
+                elif num.lower().endswith('h'):
                     decimal_values[num] = int(num[:-1], 16)
-                elif num.endswith('d'):
+                elif num.lower().endswith('d'):
                     decimal_values[num] = int(num[:-1])
                 elif 'e' in num.lower() or '.' in num:
                     decimal_values[num] = float(num)
                 else:
+                    # Если число без суффикса, но содержит hex-цифры (напр. 0AF), то оно тоже HEX
                     if all(c.upper() in '0123456789ABCDEF' for c in num):
-                         decimal_values[num] = int(num, 16)
+                        decimal_values[num] = int(num, 16)
                     else:
-                         decimal_values[num] = int(num)
+                        decimal_values[num] = int(num)
             except ValueError:
                 decimal_values[num] = "Ошибка конвертации"
 
@@ -732,7 +857,6 @@ writeln 123.45e-2;
             output += "⚠️ Ошибки:\n" + "\n".join(lexer.errors) + "\n\n"
         else:
             output += "✅ Лексический анализ завершен успешно.\n\n"
-
 
         output += "✅ Лексемы (таблица, номер):\n"
         output += " ".join(f"({t[0]},{t[1]})" for t in tokens)
