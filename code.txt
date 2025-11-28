@@ -1,0 +1,206 @@
+{
+int num, i, isPrime;
+isPrime := 1;
+
+readln num;
+
+/* Проверка числа на простоту */
+if (num <= 1)
+    isPrime := 0;
+else begin
+    i := 2;
+    while (i * i <= num && isPrime == 1) begin
+        if (num / i * i == num)
+            isPrime := 0;
+        i := i + 1;
+    end
+end
+
+writeln 01b;
+writeln 1AFh;
+writeln 123.45e-2;
+}
+
+            elif cs == 'N2':  # Потенциально двоичное (начали с 0 или 1)
+                if self.ch.lower() == 'b':
+                    if self.source_code[self.ptr + 1] != 'h':
+                        self.gc();
+                        cs = 'B'
+                    else:
+                        self.add()
+                        self.gc()
+                        self.gc();
+                        cs = "HX"
+                elif self.ch.lower() == 'o':
+                    self.gc();
+                    cs = 'O'
+                elif self.ch.lower() == 'd':
+                    if self.source_code[self.ptr + 1] != 'h':
+                        self.gc()
+                        cs = 'D'
+                    else:
+                        self.add()
+                        self.gc()
+                        self.gc()
+                        cs = "HX"
+                elif self.ch.lower() == 'h':
+                    self.gc();
+                    cs = 'HX'
+                elif self.ch in '01':
+                    self.add();
+                    self.gc()  # Остаемся в N2
+                elif '2' <= self.ch <= '7':
+                    self.add();
+                    self.gc();
+                    cs = 'N8'
+                elif self.ch in '89':
+                    self.add();
+                    self.gc();
+                    cs = 'N10'
+                elif self.is_hex_letter(self.ch):
+                    self.add();
+                    self.gc();
+                    cs = 'N16'
+                elif self.ch == '.':
+                    self.add();
+                    self.gc();
+                    cs = 'P2'
+                elif self.ch.lower() == 'e':
+                    self.add();
+                    self.gc();
+                    cs = 'E11'
+                else:
+                    cs = self.finalize_as_decimal()
+
+            elif cs == 'N8':  # Потенциально восьмеричное
+                if self.ch.lower() == 'o':
+                    self.gc();
+                    cs = 'O'
+                elif self.ch.lower() == 'd':
+                    if self.source_code[self.ptr + 1] != 'h':
+                        self.gc()
+                        cs = 'D'
+                    else:
+                        self.add()
+                        self.gc()
+                        self.gc()
+                        cs = "HX"
+                elif self.ch.lower() == 'h':
+                    self.gc();
+                    cs = 'HX'
+                elif '0' <= self.ch <= '7':
+                    self.add();
+                    self.gc()  # Остаемся в N8
+                elif self.ch in '89':
+                    self.add();
+                    self.gc();
+                    cs = 'N10'
+                elif self.is_hex_letter(self.ch):
+                    self.add();
+                    self.gc();
+                    cs = 'N16'
+                elif self.ch == '.':
+                    self.add();
+                    self.gc();
+                    cs = 'P2'
+                elif self.ch.lower() == 'e':
+                    self.add();
+                    self.gc();
+                    cs = 'E11'
+                else:
+                    cs = self.finalize_as_decimal()
+
+            elif cs == 'N10':  # Потенциально десятичное
+                if self.ch.lower() == 'o':
+                    print(f"Ошибка: в анализируемом числе присутствует цифра, "
+                          f"превышающая допустимые числа для восьмеричных чисел (0-7),\n при этом число"
+                          f" заканчивается финализирующим суффиксом восьмеричного (o).")
+                    cs = 'ER'
+                elif self.ch.lower() == 'd':
+                    if self.source_code[self.ptr + 1] != 'h':
+                        self.gc()
+                        cs = 'D'
+                    else:
+                        self.add()
+                        self.gc()
+                        self.gc()
+                        cs = "HX"
+                    elif self.ch.lower() == 'h':
+                    self.gc();
+                    cs = 'HX'
+                elif self.digit(self.ch):
+                    self.add();
+                    self.gc()  # Остаемся в N10
+                elif self.is_hex_letter(self.ch):
+                    self.add();
+                    self.gc();
+                    cs = 'N16'
+                elif self.ch == '.':
+                    self.add();
+                    self.gc();
+                    cs = 'P2'
+                elif self.ch.lower() == 'e':
+                    self.add();
+                    self.gc();
+                    cs = 'E11'
+                else:
+                    cs = self.finalize_as_decimal()
+
+                elif cs == 'N16':  # Потенциально шестнадцатеричное
+                if self.digit(self.ch) or self.is_hex_letter(self.ch):
+                    self.add()
+                    self.gc()  # Остаемся в N16
+                elif self.ch.lower() == 'h':
+                    self.gc();
+                    cs = 'HX'
+                else:
+                    print(f"Ошибка: недопустимый символ '{self.ch}' в шестнадцатеричном числе.");
+                    cs = 'ER'
+
+                # --- Состояния-финализаторы для чисел с суффиксами ---
+            elif cs == 'B':  # Finalize Binary
+                self.s += 'b'
+                z = self.put(self.TN)
+                self.out(3, z)
+                cs = 'H'
+            elif cs == 'O':  # Finalize Octal
+                self.s += 'o'
+                z = self.put(self.TN)
+                self.out(3, z)
+                cs = 'H'
+            elif cs == 'D':  # Finalize Decimal
+                self.s += 'd'
+                z = self.put(self.TN)
+                self.out(3, z)
+                cs = 'H'
+            elif cs == 'HX':  # Finalize Hexadecimal
+                self.s += 'h'
+                z = self.put(self.TN)
+                self.out(3, z)
+                cs = 'H'
+
+                # --- Действительные числа ---
+            elif cs == 'P1':  # Начало с точки: .123
+                if self.digit(self.ch):
+                    self.add();
+                    self.gc();
+                    cs = 'P2'
+                else:
+                    print("Ошибка: после '.' ожидалась цифра.");
+                    cs = 'ER'
+            elif cs == 'P2':  # Дробная часть: 123.456
+                while self.digit(self.ch): self.add(); self.gc()
+                if self.ch.lower() == 'e':
+                    self.add();
+                    self.gc();
+                    cs = 'E11'
+                else:
+                    cs = self.finalize_as_decimal()
+            elif cs == 'E11':  # Порядок: ...E+10
+                if self.ch in '+-': self.add(); self.gc()
+                if self.digit(self.ch):
+                    while self.digit(self.ch): self.add(); self.gc()
+                    cs = self.finalize_as_decimal()
+                else:
+                    print("Ошибка: после 'E' и знака ожидались цифры.");
+                    cs = 'ER'
