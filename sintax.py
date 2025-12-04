@@ -466,18 +466,6 @@ class Scanner:
         return all(c in '01234567' for c in s)
 
 
-# ==========================================
-# 2. СИНТАКСИЧЕСКИЙ АНАЛИЗАТОР (PARSER)
-# ==========================================
-# ==========================================
-# 2. СИНТАКСИЧЕСКИЙ АНАЛИЗАТОР (PARSER)
-# ==========================================
-# ==========================================
-# 2. СИНТАКСИЧЕСКИЙ АНАЛИЗАТОР (PARSER)
-# ==========================================
-# ==========================================
-# 2. СИНТАКСИЧЕСКИЙ АНАЛИЗАТОР (PARSER)
-# ==========================================
 class Parser:
     def __init__(self, tokens, tw, tl, ti, tn, rev_tw, rev_tl):
         self.tokens = tokens
@@ -498,7 +486,7 @@ class Parser:
 
     def _get_token_info(self, t):
         if not t: return "КОНЕЦ ПРОГРАММЫ"
-        return f"'{t['value']}' [Строка {t.get('line', '?')}, Позиция {t.get('col', '?')}]"
+        return f"'{t['value']}'"
 
     def validate_balance(self):
         stack = []
@@ -552,13 +540,8 @@ class Parser:
         return t
 
     def parse_program(self):
-        # ИСПРАВЛЕНИЕ ЗДЕСЬ:
-        # Сначала требуем открывающую скобку, а только потом проверяем баланс.
-        # Если скобки нет, match() выбросит ошибку "Ожидалось '{'", и программа остановится до проверки баланса.
         self.log("Начало программы: Ожидается '{'")
         self.match(2, self.TL['{'], expected_desc="'{' (Начало блока)")
-
-        # Теперь проверяем общий баланс (если первая скобка на месте)
         self.validate_balance()
 
         while True:
@@ -597,6 +580,11 @@ class Parser:
         t = self.current()
         if not t: return
 
+        # --- ИСПРАВЛЕНИЕ: Если видим точку с запятой, считаем это пустым оператором и выходим ---
+        if t['class'] == 2 and t['code'] == self.TL[';']:
+            return
+        # -------------------------------------------------------------------------------------
+
         if t['class'] == 4:
             self.parse_assignment()
         elif t['class'] == 1:
@@ -621,7 +609,8 @@ class Parser:
     def parse_assignment(self):
         self.log("  Присваивание")
         self.match(4, expected_desc="Идентификатор")
-        self.match(2, self.TL[':='], expected_desc="':='")
+        assign_code = self.TL.get(':=', self.TL.get(':', 8))
+        self.match(2, assign_code, val=':=', expected_desc="':='")
         self.parse_expression()
 
     def parse_if(self):
@@ -630,11 +619,13 @@ class Parser:
         self.match(2, self.TL['('], expected_desc="'('")
         self.parse_expression()
         self.match(2, self.TL[')'], expected_desc="')'")
-        self.match(1, self.TW['then'], expected_desc="'then'")
+
+        if 'then' in self.TW:
+            self.match(1, self.TW['then'], expected_desc="'then'")
+
         self.parse_statement()
 
         t = self.current()
-        # Проверка класса для else (чтобы не путать с ;)
         if t and t['class'] == 1 and t['code'] == self.TW.get('else'):
             self.match(1, self.TW['else'], expected_desc="'else'")
             self.parse_statement()
@@ -644,7 +635,9 @@ class Parser:
         self.match(1, self.TW['for'], expected_desc="'for' (Начало цикла)")
 
         t_id = self.current()
-        if t_id and t_id['class'] == 4 and self.tokens[self.pos + 1].get('code') == self.TL[':=']:
+        next_t = self.tokens[self.pos + 1] if self.pos + 1 < len(self.tokens) else None
+
+        if t_id and t_id['class'] == 4 and next_t and next_t['value'] == ':=':
             self.parse_assignment()
         else:
             raise SyntaxError("Ожидалось присваивание (ID := Expression) в цикле For")
@@ -653,17 +646,16 @@ class Parser:
         self.parse_expression()
 
         t = self.current()
-        # Проверка класса для step (чтобы не путать с >)
         if t and t['class'] == 1 and t['code'] == self.TW.get('step'):
             self.match(1, self.TW['step'], expected_desc="'step'")
             self.parse_expression()
 
-        # Проверка наличия begin перед парсингом тела
-        if self.current() and self.current()['code'] == self.TW.get('begin'):
-            self.parse_compound()
-        else:
-            got = self._get_token_info(self.current())
-            raise SyntaxError(f"Ошибка синтаксиса цикла For: Ожидалось ключевое слово 'begin' перед телом цикла, но найдено: {got}")
+        # Тело цикла
+        self.parse_statement()
+
+        # Если тело закончилось точкой с запятой, съедаем её, чтобы не мешала next
+        if self.current() and self.current()['code'] == self.TL[';']:
+            self.match(2, self.TL[';'], expected_desc="';'")
 
         self.match(1, self.TW['next'], expected_desc="'next' (Конец цикла)")
 
@@ -673,7 +665,8 @@ class Parser:
         self.match(2, self.TL['('], expected_desc="'('")
         self.parse_expression()
         self.match(2, self.TL[')'], expected_desc="')'")
-        self.match(1, self.TW['do'], expected_desc="'do'")
+        if 'do' in self.TW:
+            self.match(1, self.TW['do'], expected_desc="'do'")
         self.parse_statement()
 
     def parse_compound(self):
@@ -717,15 +710,16 @@ class Parser:
     def parse_expression(self):
         self.parse_simple()
         t = self.current()
-        if t and t['class'] == 2 and t['code'] in [self.TL['!='], self.TL['=='], self.TL['<'], self.TL['<='],
-                                                   self.TL['>'], self.TL['>=']]:
+        if t and t['class'] == 2 and t['code'] in [self.TL.get('!='), self.TL.get('=='), self.TL.get('<'),
+                                                   self.TL.get('<='),
+                                                   self.TL.get('>'), self.TL.get('>=')]:
             self.match(2, expected_desc="Оператор отношения")
             self.parse_simple()
 
     def parse_simple(self):
         self.parse_term()
         t = self.current()
-        while t and t['class'] == 2 and t['code'] in [self.TL['+'], self.TL['-'], self.TL['||']]:
+        while t and t['class'] == 2 and t['code'] in [self.TL.get('+'), self.TL.get('-'), self.TL.get('||')]:
             self.match(2, expected_desc="Оператор (+, -, ||)")
             self.parse_term()
             t = self.current()
@@ -733,7 +727,7 @@ class Parser:
     def parse_term(self):
         self.parse_fact()
         t = self.current()
-        while t and t['class'] == 2 and t['code'] in [self.TL['*'], self.TL['/'], self.TL['&&']]:
+        while t and t['class'] == 2 and t['code'] in [self.TL.get('*'), self.TL.get('/'), self.TL.get('&&')]:
             self.match(2, expected_desc="Оператор (*, /, &&)")
             self.parse_fact()
             t = self.current()
@@ -746,11 +740,11 @@ class Parser:
             self.match(4, expected_desc="Идентификатор")
         elif t['class'] == 3:
             self.match(3, expected_desc="Число")
-        elif t['code'] == self.TL['(']:
+        elif t['code'] == self.TL.get('('):
             self.match(2, self.TL['('], expected_desc="'('")
             self.parse_expression()
             self.match(2, self.TL[')'], expected_desc="')'")
-        elif t['code'] == self.TL['!']:
+        elif t['code'] == self.TL.get('!'):
             self.match(2, self.TL['!'], expected_desc="'!'")
             self.parse_fact()
         elif t['code'] in [self.TW.get('true'), self.TW.get('false')]:
@@ -777,16 +771,20 @@ class App:
         # Обратите внимание: writeln 123e; удален, так как он должен вызывать ошибку.
         # Вместо него оставлено writeln 123;
         sample = """{
-    int i;
-    writeln 0AFh;     /* Hex -> 175 */
-    writeln 0101b;    /* Bin -> 5 */
-    writeln 123.45;   /* Float */
-    writeln 123;      /* Integer */
+    int i, sum;
+    
+    /* 1. Простой вывод счетчика (одиночная команда) */
+    for i := 1 to 5 step 1
+       sum := sum + i;
+    next;
 
-    for i := 1 to 5 step 1 begin
-        if (i < 3) then writeln 1 else writeln 0;
-        writeln i
-    end next;
+    /* 2. Подсчет суммы (одиночное присваивание) */
+    sum := 0;
+    for i := 1 to 10
+        sum := sum + i;
+    next;
+
+    writeln sum;
 }"""
         self.input_text.insert(INSERT, sample)
 
