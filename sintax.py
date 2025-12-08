@@ -93,27 +93,42 @@ class Scanner:
                         cs = 'N10'
                 elif self.ch == '.':
                     if self.digit(self.peek()):
-                        self.add(); self.gc(); cs = 'P1'
+                        self.add();
+                        self.gc();
+                        cs = 'P1'
                     else:
-                        self.add(); self.out(2, 11); self.gc(); cs = 'H'
+                        self.add();
+                        self.out(2, 11);
+                        self.gc();
+                        cs = 'H'
                 elif self.ch == '/':
-                    self.gc(); cs = 'C1'
+                    self.gc();
+                    cs = 'C1'
                 elif self.ch == '!':
-                    self.gc(); cs = 'SE'
+                    self.gc();
+                    cs = 'SE'
                 elif self.ch == '=':
-                    self.gc(); cs = 'SEQ'
+                    self.gc();
+                    cs = 'SEQ'
                 elif self.ch == ':':
-                    self.gc(); cs = 'SC'
+                    self.gc();
+                    cs = 'SC'
                 elif self.ch == '|':
-                    self.gc(); cs = 'SP'
+                    self.gc();
+                    cs = 'SP'
                 elif self.ch == '&':
-                    self.gc(); cs = 'SA'
+                    self.gc();
+                    cs = 'SA'
                 elif self.ch == '<':
-                    self.gc(); cs = 'M1'
+                    self.gc();
+                    cs = 'M1'
                 elif self.ch == '>':
-                    self.gc(); cs = 'M2'
+                    self.gc();
+                    cs = 'M2'
                 elif self.ch == '}':
-                    self.add(); self.out(2, 2); self.gc()
+                    self.add();
+                    self.out(2, 2);
+                    self.gc()
                 else:
                     cs = 'OG'
 
@@ -122,95 +137,148 @@ class Scanner:
                 if self.s in self.TW:
                     self.out(1, self.TW[self.s])
                 else:
-                    k = self.put(self.TI); self.out(4, k)
+                    k = self.put(self.TI);
+                    self.out(4, k)
                 cs = 'H'
 
             # --- Числа ---
             elif cs == 'N0':
                 if self.ch.lower() == 'b':
                     if self._is_hex_ctx():
-                        self.add(); self.gc(); cs = 'N16'
+                        self.add();
+                        self.gc();
+                        cs = 'N16'
                     else:
-                        self.add(); self.gc(); cs = 'B_FIN'
+                        self.add();
+                        self.gc();
+                        cs = 'B_FIN'
                 elif self.ch.lower() == 'o':
                     if self._is_hex_ctx():
-                        self.add(); self.gc(); cs = 'N16'
+                        self.add();
+                        self.gc();
+                        cs = 'N16'
                     else:
-                        self.add(); self.gc(); cs = 'O_FIN'
+                        self.add();
+                        self.gc();
+                        cs = 'O_FIN'
                 elif self.ch.lower() == 'd':
                     if self._is_hex_ctx():
-                        self.add(); self.gc(); cs = 'N16'
+                        self.add();
+                        self.gc();
+                        cs = 'N16'
                     else:
-                        self.add(); self.gc(); cs = 'D_FIN'
+                        self.add();
+                        self.gc();
+                        cs = 'D_FIN'
                 elif self.ch.lower() == 'h':
-                    self.add(); self.gc(); cs = 'H_FIN'
+                    self.add();
+                    self.gc();
+                    cs = 'H_FIN'
                 elif self.ch.lower() == 'e' and (self.peek() in '+-' or self.digit(self.peek())):
                     self.add();
                     self.gc();
                     cs = 'E1'
                 elif self.ch == '.':
-                    self.add(); self.gc(); cs = 'P2'
+                    self.add();
+                    self.gc();
+                    cs = 'P2'
                 elif self.digit(self.ch) or self.is_hex_char(self.ch):
                     self.add();
                     self.gc();
                     cs = 'N16'
                 else:
-                    z = self.put(self.TN); self.out(3, z); cs = 'H'
+                    z = self.put(self.TN);
+                    self.out(3, z);
+                    cs = 'H'
 
             elif cs == 'N10':
                 if self.ch.lower() == 'b':
                     if self._is_hex_ctx():
-                        self.add(); self.gc(); cs = 'N16'
+                        self.add();
+                        self.gc();
+                        cs = 'N16'
                     else:
-                        self.errors.append("Ошибка: суффикс 'b' у десятичного числа"); cs = 'H'
+                        self.errors.append("Ошибка: суффикс 'b' у десятичного числа");
+                        cs = 'H'
                 elif self.ch.lower() == 'd':
                     if self._is_hex_ctx():
-                        self.add(); self.gc(); cs = 'N16'
+                        self.add();
+                        self.gc();
+                        cs = 'N16'
                     else:
-                        self.add(); self.gc(); cs = 'D_FIN'
+                        self.add();
+                        self.gc();
+                        cs = 'D_FIN'
                 elif self.ch.lower() == 'h':
-                    self.add(); self.gc(); cs = 'H_FIN'
+                    self.add();
+                    self.gc();
+                    cs = 'H_FIN'
                 elif self.ch.lower() == 'e' and (self.peek() in '+-' or self.digit(self.peek())):
                     self.add();
                     self.gc();
                     cs = 'E1'
                 elif self.ch == '.':
-                    self.add(); self.gc(); cs = 'P2'
+                    self.add();
+                    self.gc();
+                    cs = 'P2'
                 elif self.is_hex_char(self.ch):
-                    self.add(); self.gc(); cs = 'N16'
+                    self.add();
+                    self.gc();
+                    cs = 'N16'
                 elif self.digit(self.ch):
-                    self.add(); self.gc()
+                    self.add();
+                    self.gc()
                 else:
-                    z = self.put(self.TN); self.out(3, z); cs = 'H'
+                    z = self.put(self.TN);
+                    self.out(3, z);
+                    cs = 'H'
 
             elif cs == 'N16':
                 if self.digit(self.ch) or self.is_hex_char(self.ch):
-                    self.add(); self.gc()
+                    self.add();
+                    self.gc()
                 elif self.ch.lower() == 'h':
-                    self.add(); self.gc(); cs = 'H_FIN'
+                    self.add();
+                    self.gc();
+                    cs = 'H_FIN'
                 else:
                     if self._check_hex(self.s):
-                        z = self.put(self.TN); self.out(3, z); cs = 'H'
+                        z = self.put(self.TN);
+                        self.out(3, z);
+                        cs = 'H'
                     else:
-                        self.errors.append(f"Ошибка Hex: {self.s}"); cs = 'H'
+                        self.errors.append(f"Ошибка Hex: {self.s}");
+                        cs = 'H'
 
             elif cs == 'B_FIN':
-                z = self.put(self.TN); self.out(3, z); cs = 'H'
+                z = self.put(self.TN);
+                self.out(3, z);
+                cs = 'H'
             elif cs == 'O_FIN':
-                z = self.put(self.TN); self.out(3, z); cs = 'H'
+                z = self.put(self.TN);
+                self.out(3, z);
+                cs = 'H'
             elif cs == 'D_FIN':
-                z = self.put(self.TN); self.out(3, z); cs = 'H'
+                z = self.put(self.TN);
+                self.out(3, z);
+                cs = 'H'
             elif cs == 'H_FIN':
                 if self._check_hex(self.s[:-1]):
-                    z = self.put(self.TN); self.out(3, z); cs = 'H'
+                    z = self.put(self.TN);
+                    self.out(3, z);
+                    cs = 'H'
                 else:
-                    self.errors.append(f"Неверный Hex: {self.s}"); cs = 'H'
+                    self.errors.append(f"Неверный Hex: {self.s}");
+                    cs = 'H'
 
             elif cs == 'P1':
                 if self.digit(self.ch):
-                    self.add(); self.gc(); cs = 'P2'
+                    self.add();
+                    self.gc();
+                    cs = 'P2'
                 else:
-                    self.errors.append("Ожидалась цифра после точки"); cs = 'H'
+                    self.errors.append("Ожидалась цифра после точки");
+                    cs = 'H'
             elif cs == 'P2':
                 while self.digit(self.ch): self.add(); self.gc()
                 if self.ch.lower() == 'e' and (self.peek() in '+-' or self.digit(self.peek())):
@@ -218,12 +286,17 @@ class Scanner:
                     self.gc();
                     cs = 'E1'
                 else:
-                    z = self.put(self.TN); self.out(3, z); cs = 'H'
+                    z = self.put(self.TN);
+                    self.out(3, z);
+                    cs = 'H'
             elif cs == 'E1':
                 if self.digit(self.ch) or self.ch in '+-':
-                    self.add(); self.gc(); cs = 'E2'
+                    self.add();
+                    self.gc();
+                    cs = 'E2'
                 else:
-                    self.errors.append("Ошибка в экспоненте"); cs = 'H'
+                    self.errors.append("Ошибка в экспоненте");
+                    cs = 'H'
             elif cs == 'E2':
                 while self.digit(self.ch): self.add(); self.gc()
                 z = self.put(self.TN);
@@ -232,67 +305,99 @@ class Scanner:
 
             elif cs == 'C1':
                 if self.ch == '*':
-                    self.gc(); cs = 'C2'
+                    self.gc();
+                    cs = 'C2'
                 else:
-                    self.s = '/'; self.out(2, 16); cs = 'H'
+                    self.s = '/';
+                    self.out(2, 16);
+                    self.gc()
             elif cs == 'C2':
                 while self.ch and self.ch != '*': self.gc()
                 if not self.ch:
                     cs = 'E'
                 else:
-                    self.gc(); cs = 'C3'
+                    self.gc();
+                    cs = 'C3'
             elif cs == 'C3':
                 if self.ch == '/':
-                    self.gc(); cs = 'H'
+                    self.gc();
+                    cs = 'H'
                 else:
                     cs = 'C2'
 
             elif cs == 'SE':
                 if self.ch == '=':
-                    self.s = '!='; self.out(2, 18); self.gc()
+                    self.s = '!=';
+                    self.out(2, 18);
+                    self.gc()
                 else:
-                    self.s = '!'; self.out(2, 24)
+                    self.s = '!';
+                    self.out(2, 24)
                 cs = 'H'
             elif cs == 'SEQ':
                 if self.ch == '=':
-                    self.s = '=='; self.out(2, 23); self.gc()
+                    self.s = '==';
+                    self.out(2, 23);
+                    self.gc()
                 else:
-                    self.s = '='; self.out(2, 15)
+                    self.s = '=';
+                    self.out(2, 15)
                 cs = 'H'
             elif cs == 'SC':
                 if self.ch == '=':
-                    self.s = ':='; self.out(2, 8); self.gc()
+                    self.s = ':=';
+                    self.out(2, 8);
+                    self.gc()
                 else:
-                    self.s = ':'; self.out(2, 8)
+                    self.s = ':';
+                    self.out(2, 8)
                 cs = 'H'
             elif cs == 'SP':
                 if self.ch == '|':
-                    self.s = '||'; self.out(2, 14); self.gc(); cs = 'H'
+                    self.s = '||';
+                    self.out(2, 14);
+                    self.gc();
+                    cs = 'H'
                 else:
-                    self.errors.append("Ожидался второй '|'"); cs = 'H'
+                    self.errors.append("Ожидался второй '|'");
+                    cs = 'H'
             elif cs == 'SA':
                 if self.ch == '&':
-                    self.s = '&&'; self.out(2, 17); self.gc(); cs = 'H'
+                    self.s = '&&';
+                    self.out(2, 17);
+                    self.gc();
+                    cs = 'H'
                 else:
-                    self.errors.append("Ожидался второй '&'"); cs = 'H'
+                    self.errors.append("Ожидался второй '&'");
+                    cs = 'H'
             elif cs == 'M1':
                 if self.ch == '=':
-                    self.s = '<='; self.out(2, 21); self.gc()
+                    self.s = '<=';
+                    self.out(2, 21);
+                    self.gc()
                 else:
-                    self.s = '<'; self.out(2, 20)
+                    self.s = '<';
+                    self.out(2, 20)
                 cs = 'H'
             elif cs == 'M2':
                 if self.ch == '=':
-                    self.s = '>='; self.out(2, 22); self.gc()
+                    self.s = '>=';
+                    self.out(2, 22);
+                    self.gc()
                 else:
-                    self.s = '>'; self.out(2, 19)
+                    self.s = '>';
+                    self.out(2, 19)
                 cs = 'H'
             elif cs == 'OG':
                 self.add()
                 if self.s in self.TL:
-                    self.out(2, self.TL[self.s]); self.gc(); cs = 'H'
+                    self.out(2, self.TL[self.s]);
+                    self.gc();
+                    cs = 'H'
                 else:
-                    self.errors.append(f"Неизвестный символ: {self.s}"); self.gc(); cs = 'H'
+                    self.errors.append(f"Неизвестный символ: {self.s}");
+                    self.gc();
+                    cs = 'H'
 
         return self.tokens, self.errors
 
@@ -596,13 +701,338 @@ class Parser:
 
 
 # ==========================================
-# 3. GUI (APP)
+# 3. СЕМАНТИЧЕСКИЙ АНАЛИЗАТОР
+# ==========================================
+class SemanticAnalyzer:
+    def __init__(self, tokens, ti, tn, tw, tl, rev_tw):
+        self.tokens = tokens
+        self.TI = ti
+        self.TN = tn
+        self.TW = tw
+        self.TL = tl
+        self.REV_TW = rev_tw
+
+        # Таблица символов: {id: {'type': тип, 'declared': bool, 'initialized': bool}}
+        self.symbol_table = {}
+
+        # Текущий контекст (для проверки вложенных блоков)
+        self.current_context = []
+
+        # Типы операций
+        self.arithmetic_ops = [tl['+'], tl['-'], tl['*'], tl['/']]
+        self.relational_ops = [tl['<'], tl['<='], tl['>'], tl['>='], tl['=='], tl['!=']]
+        self.logical_ops = [tl['||'], tl['&&'], tl['!']]
+
+        self.errors = []
+        self.warnings = []
+        self.log_messages = []
+
+    def log(self, msg):
+        self.log_messages.append(msg)
+
+    def error(self, msg, token=None):
+        if token:
+            pos = self._find_token_position(token)
+            self.errors.append(f"Семантическая ошибка (позиция {pos}): {msg}")
+        else:
+            self.errors.append(f"Семантическая ошибка: {msg}")
+
+    def warning(self, msg, token=None):
+        if token:
+            pos = self._find_token_position(token)
+            self.warnings.append(f"Семантическое предупреждение (позиция {pos}): {msg}")
+        else:
+            self.warnings.append(f"Семантическое предупреждение: {msg}")
+
+    def _find_token_position(self, token):
+        for i, t in enumerate(self.tokens):
+            if t == token:
+                return i
+        return "неизвестно"
+
+    def analyze(self):
+        self.log("Начало семантического анализа")
+
+        try:
+            self._analyze_tokens()
+            self._check_uninitialized_vars()
+
+            if not self.errors:
+                self.log("Семантический анализ завершен успешно")
+        except Exception as e:
+            self.error(f"Ошибка во время семантического анализа: {str(e)}")
+
+        return self.errors, self.warnings
+
+    def _analyze_tokens(self):
+        i = 0
+        while i < len(self.tokens):
+            token = self.tokens[i]
+
+            # Проверка объявления переменных
+            if token['class'] == 1 and token['code'] in [self.TW['int'], self.TW['float'], self.TW['bool']]:
+                var_type = self.REV_TW[token['code']]
+                i += 1
+
+                # Переменные после типа
+                while i < len(self.tokens) and self.tokens[i]['class'] == 4:
+                    var_name = self.tokens[i]['value']
+
+                    # Проверка повторного объявления
+                    if var_name in self.symbol_table:
+                        self.error(f"Переменная '{var_name}' уже объявлена", self.tokens[i])
+                    else:
+                        self.symbol_table[var_name] = {
+                            'type': var_type,
+                            'declared': True,
+                            'initialized': False,
+                            'used': False
+                        }
+                        self.log(f"  Объявлена переменная '{var_name}' типа {var_type}")
+
+                    i += 1
+
+                    # Проверка следующего токена (запятая или точка с запятой)
+                    if i < len(self.tokens) and self.tokens[i]['code'] == self.TL[',']:
+                        i += 1
+                    elif i < len(self.tokens) and self.tokens[i]['code'] == self.TL[';']:
+                        break
+
+            # Проверка присваивания
+            elif token['class'] == 4 and i + 1 < len(self.tokens) and self.tokens[i + 1]['value'] == ':=':
+                var_name = token['value']
+
+                # Проверка объявления переменной
+                if var_name not in self.symbol_table:
+                    self.error(f"Использование необъявленной переменной '{var_name}'", token)
+                else:
+                    self.symbol_table[var_name]['used'] = True
+
+                # Пропускаем :=
+                i += 2
+
+                # Анализ правой части выражения
+                expr_end = self._find_expression_end(i)
+                expr_tokens = self.tokens[i:expr_end]
+                self._analyze_expression(expr_tokens, var_name)
+                i = expr_end
+
+            # Проверка использования в выражениях
+            elif token['class'] == 4:
+                var_name = token['value']
+                if var_name in self.symbol_table:
+                    self.symbol_table[var_name]['used'] = True
+
+            i += 1
+
+    def _find_expression_end(self, start):
+        i = start
+        paren_count = 0
+
+        while i < len(self.tokens):
+            token = self.tokens[i]
+
+            if token['class'] == 2:
+                if token['code'] == self.TL['(']:
+                    paren_count += 1
+                elif token['code'] == self.TL[')']:
+                    if paren_count > 0:
+                        paren_count -= 1
+                    else:
+                        break
+                elif token['code'] == self.TL[';'] and paren_count == 0:
+                    break
+                elif token['code'] == self.TL[','] and paren_count == 0:
+                    break
+                elif token['code'] == self.TL['}'] and paren_count == 0:
+                    break
+
+            i += 1
+
+        return i
+
+    def _analyze_expression(self, expr_tokens, target_var=None):
+        if not expr_tokens:
+            return None
+
+        # Анализ типа выражения
+        expr_type = self._get_expression_type(expr_tokens)
+
+        # Если есть целевая переменная, проверяем совместимость типов
+        if target_var and target_var in self.symbol_table:
+            target_type = self.symbol_table[target_var]['type']
+
+            # Проверка инициализации
+            self.symbol_table[target_var]['initialized'] = True
+
+            # Проверка совместимости типов
+            if expr_type and not self._types_compatible(target_type, expr_type):
+                self.error(
+                    f"Несовместимость типов: нельзя присвоить выражение типа '{expr_type}' переменной типа '{target_type}'",
+                    expr_tokens[0])
+
+        return expr_type
+
+    def _get_expression_type(self, tokens):
+        if not tokens:
+            return None
+
+        # Если один токен
+        if len(tokens) == 1:
+            token = tokens[0]
+
+            if token['class'] == 4:  # Идентификатор
+                var_name = token['value']
+                if var_name in self.symbol_table:
+                    return self.symbol_table[var_name]['type']
+                else:
+                    self.error(f"Использование необъявленной переменной '{var_name}'", token)
+                    return None
+
+            elif token['class'] == 3:  # Число
+                # Определяем тип числа
+                num_val = token['value']
+                if '.' in num_val or 'e' in num_val.lower():
+                    return 'float'
+                else:
+                    # Проверяем, не является ли это hex/oct/binary числом
+                    if num_val.lower().endswith('h'):
+                        return 'int'
+                    elif num_val.lower().endswith('b') or num_val.lower().endswith('o'):
+                        return 'int'
+                    elif num_val.lower().endswith('d'):
+                        return 'int'
+                    elif any(c.lower() in 'abcdef' for c in num_val):
+                        return 'int'  # Hex без суффикса
+                    else:
+                        return 'int'
+
+            elif token['class'] == 1:  # Ключевое слово
+                if token['code'] in [self.TW['true'], self.TW['false']]:
+                    return 'bool'
+
+        # Если есть операторы
+        op_positions = []
+        for i, token in enumerate(tokens):
+            if token['class'] == 2:
+                op_positions.append((i, token['code']))
+
+        # Проверка операторов
+        for pos, op_code in op_positions:
+            if op_code in self.arithmetic_ops:
+                left_type = self._get_expression_type(tokens[:pos])
+                right_type = self._get_expression_type(tokens[pos + 1:]) if pos + 1 < len(tokens) else None
+
+                # Арифметические операции требуют числовых типов
+                if left_type and left_type not in ['int', 'float']:
+                    self.error(f"Неверный тип для арифметической операции: '{left_type}'", tokens[0])
+
+                if right_type and right_type not in ['int', 'float']:
+                    self.error(f"Неверный тип для арифметической операции: '{right_type}'",
+                               tokens[pos + 1] if pos + 1 < len(tokens) else tokens[-1])
+
+                # Результирующий тип - более широкий из двух
+                if left_type == 'float' or right_type == 'float':
+                    return 'float'
+                elif left_type == 'int' and right_type == 'int':
+                    return 'int'
+                elif left_type == 'int' and right_type is None:
+                    return 'int'
+                elif left_type is None and right_type == 'int':
+                    return 'int'
+                else:
+                    return None  # Неопределенный тип
+
+            elif op_code in self.relational_ops:
+                left_type = self._get_expression_type(tokens[:pos])
+                right_type = self._get_expression_type(tokens[pos + 1:]) if pos + 1 < len(tokens) else None
+
+                # Отношения требуют совместимых типов
+                if left_type and right_type and not self._types_comparable(left_type, right_type):
+                    self.error(f"Несравнимые типы: '{left_type}' и '{right_type}'", tokens[pos])
+
+                return 'bool'
+
+            elif op_code in self.logical_ops:
+                left_type = self._get_expression_type(tokens[:pos])
+                if op_code != self.TL['!']:  # Унарный !
+                    right_type = self._get_expression_type(tokens[pos + 1:]) if pos + 1 < len(self.tokens) else None
+
+                # Логические операции требуют булевых типов
+                if left_type and left_type != 'bool':
+                    self.error(f"Неверный тип для логической операции: '{left_type}'", tokens[0])
+
+                if op_code != self.TL['!'] and right_type and right_type != 'bool':
+                    self.error(f"Неверный тип для логической операции: '{right_type}'",
+                               tokens[pos + 1] if pos + 1 < len(tokens) else tokens[-1])
+
+                return 'bool'
+
+        # Если выражение в скобках
+        if tokens and tokens[0]['code'] == self.TL['('] and tokens[-1]['code'] == self.TL[')']:
+            return self._get_expression_type(tokens[1:-1])
+
+        return None
+
+    def _types_compatible(self, target_type, expr_type):
+        # Правила совместимости типов для присваивания
+        # int <- int
+        # float <- int или float
+        # bool <- bool
+
+        if not expr_type:  # Если тип выражения не определен
+            return True  # Пропускаем проверку
+
+        compatibility = {
+            'int': ['int'],
+            'float': ['int', 'float'],
+            'bool': ['bool']
+        }
+
+        if target_type not in compatibility:
+            return False
+
+        return expr_type in compatibility[target_type]
+
+    def _types_comparable(self, type1, type2):
+        # Правила сравнения типов
+        comparable_pairs = [
+            ('int', 'int'),
+            ('int', 'float'),
+            ('float', 'int'),
+            ('float', 'float'),
+            ('bool', 'bool')
+        ]
+
+        return (type1, type2) in comparable_pairs or (type2, type1) in comparable_pairs
+
+    def _check_uninitialized_vars(self):
+        # Проверка использования неинициализированных переменных
+        for var_name, info in self.symbol_table.items():
+            if info['used'] and not info['initialized']:
+                self.warning(f"Использование неинициализированной переменной '{var_name}'")
+
+    def get_symbol_table_report(self):
+        report = "ТАБЛИЦА СИМВОЛОВ:\n"
+        report += "=" * 50 + "\n"
+        report += f"{'Имя':<15} {'Тип':<10} {'Объявлена':<12} {'Инициализирована':<18} {'Использована':<15}\n"
+        report += "-" * 70 + "\n"
+
+        for var_name, info in self.symbol_table.items():
+            report += f"{var_name:<15} {info['type']:<10} "
+            report += f"{'Да':<12} {'Да' if info['initialized'] else 'Нет':<18} {'Да' if info['used'] else 'Нет':<15}\n"
+
+        return report
+
+
+# ==========================================
+# 4. GUI (APP)
 # ==========================================
 class App:
     def __init__(self, root):
         self.root = root
-        self.root.title("Анализатор (Scan -> Parse -> Dec)")
-        self.root.geometry("1200x850")
+        self.root.title("Анализатор (Scan -> Parse -> Sem)")
+        self.root.geometry("1200x900")
         ctk.set_appearance_mode("System")
 
         # Top
@@ -612,23 +1042,32 @@ class App:
         self.input_text = ctk.CTkTextbox(top_frame, height=180, font=("Consolas", 12))
         self.input_text.pack(fill="both", pady=5)
 
-        # Обновленный пример с двумя видами циклов
+        # Обновленный пример с семантическими проверками
         sample = """{
-    int i, sum;
+    int i, sum, count;
+    float avg, pi;
+    bool flag, ready;
+
     sum := 0;
+    count := 5;
+    pi := 3.14;
+    flag := true;
 
-    /* 1. Цикл с одним оператором (без begin) */
-    for i := 1 to 5 step 1
-       writeln i;
-    next;
+    /* Корректные операции */
+    avg := sum / count;
 
-    /* 2. Цикл с блоком begin ... end */
-    for i := 1 to 5 step 1 begin
+    /* Семантические ошибки */
+    sum := flag;       /* Ошибка: несовместимость типов */
+    result := 10;      /* Ошибка: необъявленная переменная */
+    ready := count;    /* Ошибка: несовместимость типов */
+
+    /* Цикл */
+    for i := 1 to 10 step 1 begin
         sum := sum + i;
         writeln sum
     end next;
 
-    writeln sum
+    writeln avg, pi
 }"""
         self.input_text.insert(INSERT, sample)
 
@@ -643,6 +1082,7 @@ class App:
         self.tabview.pack(fill="both", expand=True, padx=15, pady=10)
 
         self.out_parse = self._mk_tab("Синтаксис")
+        self.out_semantic = self._mk_tab("Семантический")
         self.out_tokens = self._mk_tab("Токены")
         self.out_tables = self.tabview.add("Таблицы")
         self.out_errors = self._mk_tab("Ошибки")
@@ -748,8 +1188,43 @@ class App:
         try:
             parser.parse_program()
             for m in parser.log_messages: self.out_parse.insert(INSERT, f" -> {m}\n")
-            self.out_parse.insert(INSERT, "\n✅ Успешно!")
-            self.tabview.set("Синтаксис")
+            self.out_parse.insert(INSERT, "\n✅ Синтаксический анализ завершен успешно!\n")
+
+            # Запуск семантического анализа
+            self.out_semantic.insert(INSERT, "Start Semantic Analysis...\n")
+            semantic = SemanticAnalyzer(
+                tokens,
+                self.scanner.TI,
+                self.scanner.TN,
+                self.scanner.TW,
+                self.scanner.TL,
+                self.scanner.REV_TW
+            )
+
+            errors, warnings = semantic.analyze()
+
+            # Вывод логов семантического анализа
+            for m in semantic.log_messages:
+                self.out_semantic.insert(INSERT, f" -> {m}\n")
+
+            # Вывод таблицы символов
+            self.out_semantic.insert(INSERT, "\n" + semantic.get_symbol_table_report())
+
+            # Вывод ошибок и предупреждений
+            if errors:
+                self.out_semantic.insert(INSERT, "\n❌ СЕМАНТИЧЕСКИЕ ОШИБКИ:\n")
+                for e in errors: self.out_semantic.insert(INSERT, f" -> {e}\n")
+
+            if warnings:
+                self.out_semantic.insert(INSERT, "\n⚠️ СЕМАНТИЧЕСКИЕ ПРЕДУПРЕЖДЕНИЯ:\n")
+                for w in warnings: self.out_semantic.insert(INSERT, f" -> {w}\n")
+
+            if not errors:
+                self.out_semantic.insert(INSERT, "\n✅ Семантический анализ завершен успешно!\n")
+
+            # Показываем вкладку семантического анализа
+            self.tabview.set("Семантический")
+
         except SyntaxError as e:
             self.out_errors.insert(INSERT, f"❌ СИНТАКСИЧЕСКАЯ ОШИБКА:\n")
             self.out_errors.insert(INSERT, f"{str(e)}\n\n")
@@ -770,6 +1245,7 @@ class App:
 
     def clear_outputs(self):
         self.out_parse.delete("1.0", END)
+        self.out_semantic.delete("1.0", END)
         self.out_tokens.delete("1.0", END)
         self.out_errors.delete("1.0", END)
         self.txt_tw.delete("1.0", END)
