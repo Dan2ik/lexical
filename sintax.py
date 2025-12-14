@@ -782,7 +782,7 @@ class Parser:
 
 
 # ==========================================
-# 3. СЕМАНТИЧЕСКИЙ АНАЛИЗАТОР (ИСПРАВЛЕННЫЙ)
+# 3. СЕМАНТИЧЕСКИЙ АНАЛИЗАТОР (ИСПРАВЛЕННЫЙ С УЧЕТОМ ТРЕБОВАНИЙ)
 # ==========================================
 class SemanticAnalyzer:
     def __init__(self, tokens, ti, tn, tw, tl, rev_tw):
@@ -793,7 +793,8 @@ class SemanticAnalyzer:
         self.TL = tl
         self.REV_TW = rev_tw
 
-        # Таблица символов: {id: {'type': тип, 'declared': bool, 'initialized': bool}}
+        # Таблица символов: {id: {'type': тип, 'declared': bool, 'initialized': bool, 'used': bool}}
+        # Для необъявленных переменных 'declared' будет False
         self.symbol_table = {}
 
         # Типы операций
@@ -865,8 +866,18 @@ class SemanticAnalyzer:
 
                     # Проверка повторного объявления
                     if var_name in self.symbol_table:
-                        self.error(f"Переменная '{var_name}' уже объявлена", self.tokens[i])
+                        if self.symbol_table[var_name]['declared']:
+                            self.error(f"Переменная '{var_name}' уже объявлена", self.tokens[i])
+                        else:
+                            # Если была необъявленной, теперь объявляем
+                            self.symbol_table[var_name] = {
+                                'type': var_type,
+                                'declared': True,
+                                'initialized': False,
+                                'used': False
+                            }
                     else:
+                        # Новая переменная
                         self.symbol_table[var_name] = {
                             'type': var_type,
                             'declared': True,
@@ -937,9 +948,19 @@ class SemanticAnalyzer:
 
                 # Проверка объявления переменной
                 if var_name not in self.symbol_table:
+                    # Если переменная не найдена, добавляем её как необъявленную
+                    self.symbol_table[var_name] = {
+                        'type': 'unknown',  # Тип неизвестен
+                        'declared': False,  # Важно: указываем, что не объявлена
+                        'initialized': True,  # Но инициализирована (через присваивание)
+                        'used': True
+                    }
                     self.error(f"Использование необъявленной переменной '{var_name}'", token)
                 else:
+                    # Если переменная уже есть в таблице, обновляем её статус
                     self.symbol_table[var_name]['used'] = True
+                    if self.symbol_table[var_name]['declared']:
+                        self.symbol_table[var_name]['initialized'] = True
 
                 # Пропускаем :=
                 i += 2
@@ -955,7 +976,7 @@ class SemanticAnalyzer:
                 expr_type = self._analyze_expression(expr_tokens)
 
                 # ПРОВЕРКА СОВМЕСТИМОСТИ ТИПОВ ПРИ ПРИСВАИВАНИИ
-                if target_type and expr_type:
+                if target_type and expr_type and target_type != 'unknown':
                     # Проверяем, что тип выражения совместим с типом переменной
                     if not self._types_compatible_for_assignment(target_type, expr_type):
                         self.error(
@@ -965,17 +986,22 @@ class SemanticAnalyzer:
                     # Дополнительная проверка операций в выражении (только для выражений, не для :=)
                     self._validate_operations_in_expression(expr_tokens, target_type, var_name)
 
-                # Помечаем переменную как инициализированную
-                if var_name in self.symbol_table:
-                    self.symbol_table[var_name]['initialized'] = True
-
                 i = expr_end
                 continue
 
-            # Проверка использования в выражениях
+            # Проверка использования в выражениях (не в присваивании)
             elif token['class'] == 4:
                 var_name = token['value']
-                if var_name in self.symbol_table:
+                if var_name not in self.symbol_table:
+                    # Добавляем необъявленную переменную
+                    self.symbol_table[var_name] = {
+                        'type': 'unknown',
+                        'declared': False,  # Не объявлена
+                        'initialized': False,
+                        'used': True
+                    }
+                    self.error(f"Использование необъявленной переменной '{var_name}'", token)
+                else:
                     self.symbol_table[var_name]['used'] = True
 
             i += 1
@@ -1028,8 +1054,15 @@ class SemanticAnalyzer:
                 if var_name in self.symbol_table:
                     return self.symbol_table[var_name]['type']
                 else:
+                    # Если переменная не в таблице, добавляем как необъявленную
+                    self.symbol_table[var_name] = {
+                        'type': 'unknown',
+                        'declared': False,
+                        'initialized': False,
+                        'used': True
+                    }
                     self.error(f"Использование необъявленной переменной '{var_name}'", token)
-                    return None
+                    return 'unknown'
 
             elif token['class'] == 3:  # Число
                 # Определяем тип числа
@@ -1067,11 +1100,11 @@ class SemanticAnalyzer:
                     right_type = self._get_expression_type(right_tokens)
 
                     # Проверка типов для арифметики
-                    if left_type and left_type not in ['int', 'float']:
+                    if left_type and left_type not in ['int', 'float'] and left_type != 'unknown':
                         self.error(f"Неверный тип для арифметической операции '{op_value}': '{left_type}'",
                                    tokens[0] if left_tokens else token)
 
-                    if right_type and right_type not in ['int', 'float']:
+                    if right_type and right_type not in ['int', 'float'] and right_type != 'unknown':
                         self.error(f"Неверный тип для арифметической операции '{op_value}': '{right_type}'",
                                    tokens[i + 1] if i + 1 < len(tokens) else token)
 
@@ -1084,6 +1117,8 @@ class SemanticAnalyzer:
                         return 'int'
                     elif left_type is None and right_type == 'int':
                         return 'int'
+                    elif left_type == 'unknown' or right_type == 'unknown':
+                        return 'unknown'
 
                 # Проверка логических операций
                 elif op_value in self.logical_ops:
@@ -1095,11 +1130,11 @@ class SemanticAnalyzer:
                         right_type = self._get_expression_type(right_tokens)
 
                     # Проверка типов для логических операций
-                    if left_type and left_type != 'bool':
+                    if left_type and left_type != 'bool' and left_type != 'unknown':
                         self.error(f"Неверный тип для логической операции '{op_value}': '{left_type}'",
                                    tokens[0] if left_tokens else token)
 
-                    if op_value != '!' and right_type and right_type != 'bool':
+                    if op_value != '!' and right_type and right_type != 'bool' and right_type != 'unknown':
                         self.error(f"Неверный тип для логической операции '{op_value}': '{right_type}'",
                                    tokens[i + 1] if i + 1 < len(tokens) else token)
 
@@ -1108,13 +1143,14 @@ class SemanticAnalyzer:
                 # Проверка операторов отношения
                 elif op_value in self.relational_ops:
                     left_tokens = tokens[:i]
-                    right_tokens = tokens[i + 1:] if i + 1 < len(tokens) else []
+                    right_tokens = tokens[i + 1:] if i + 1 < len(self.tokens) else []
 
                     left_type = self._get_expression_type(left_tokens)
                     right_type = self._get_expression_type(right_tokens)
 
                     # Проверка совместимости типов для сравнения
-                    if left_type and right_type and not self._types_comparable(left_type, right_type):
+                    if (left_type and right_type and left_type != 'unknown' and
+                        right_type != 'unknown' and not self._types_comparable(left_type, right_type)):
                         self.error(f"Несравнимые типы для операции '{op_value}': '{left_type}' и '{right_type}'", token)
 
                     return 'bool'
@@ -1151,7 +1187,7 @@ class SemanticAnalyzer:
     def _types_compatible_for_assignment(self, target_type, expr_type):
         """Проверка совместимости типов для присваивания"""
 
-        if expr_type is None:
+        if expr_type is None or expr_type == 'unknown':
             return False  # Неизвестный тип выражения
 
         # Базовые правила совместимости
@@ -1183,18 +1219,22 @@ class SemanticAnalyzer:
     def _check_uninitialized_vars(self):
         # Проверка использования неинициализированных переменных
         for var_name, info in self.symbol_table.items():
-            if info['used'] and not info['initialized']:
+            if info['used'] and not info['initialized'] and info['declared']:
                 self.warning(f"Использование неинициализированной переменной '{var_name}'")
 
     def get_symbol_table_report(self):
         report = "ТАБЛИЦА СИМВОЛОВ:\n"
-        report += "=" * 50 + "\n"
+        report += "=" * 60 + "\n"
         report += f"{'Имя':<15} {'Тип':<10} {'Объявлена':<12} {'Инициализирована':<18} {'Использована':<15}\n"
         report += "-" * 70 + "\n"
 
         for var_name, info in self.symbol_table.items():
             report += f"{var_name:<15} {info['type']:<10} "
-            report += f"{'Да':<12} {'Да' if info['initialized'] else 'Нет':<18} {'Да' if info['used'] else 'Нет':<15}\n"
+            # Для поля "Объявлена" показываем "Да" или "Нет"
+            declared_text = "Да" if info['declared'] else "Нет"
+            report += f"{declared_text:<12} "
+            report += f"{'Да' if info['initialized'] else 'Нет':<18} "
+            report += f"{'Да' if info['used'] else 'Нет':<15}\n"
 
         return report
 
