@@ -431,9 +431,6 @@ class Scanner:
         if not s:
             return False
         return all(c.upper() in '0123456789ABCDEF' for c in s)
-# ==========================================
-# 2. СИНТАКСИЧЕСКИЙ АНАЛИЗАТОР (PARSER) - ИСПРАВЛЕННЫЙ
-# ==========================================
 class Parser:
     def __init__(self, tokens, tw, tl, ti, tn, rev_tw, rev_tl):
         self.tokens = tokens
@@ -453,19 +450,18 @@ class Parser:
         return self.tokens[self.pos] if self.pos < len(self.tokens) else None
 
     def _get_token_info(self, t):
-        if not t: return "КОНЕЦ ПРОГРАММЫ"
-        # Получаем символьное представление токена
-        if t['class'] == 1:  # Ключевое слово
+        if not t:
+            return "КОНЕЦ ПРОГРАММЫ"
+        if t['class'] == 1:
             return f"'{self.REV_TW.get(t['code'], '?')}'"
-        elif t['class'] == 2:  # Символ
-            # Особый случай для readln/writeln с скобками
+        elif t['class'] == 2:
             symbol = self.REV_TL.get(t['code'], '?')
             if symbol in ['(', ')', ',', ';']:
                 return f"'{symbol}'"
             return f"'{t['value']}'"
-        elif t['class'] == 3:  # Число
+        elif t['class'] == 3:
             return f"число '{t['value']}'"
-        elif t['class'] == 4:  # Идентификатор
+        elif t['class'] == 4:
             return f"идентификатор '{t['value']}'"
         return f"'{t['value']}'"
 
@@ -496,25 +492,6 @@ class Parser:
             char = code_to_sym[last_open_code]
             raise SyntaxError(f"Не закрыта скобка: '{char}' (открыта в {self._get_token_info(last_open_token)})")
 
-    def parse_declaration(self):
-        self.log("  Объявление переменных")
-        # Тип данных
-        type_token = self.match(1, expected_desc="Тип данных (int, float, bool)")
-
-        # Первый идентификатор
-        first_id = self.match(4, expected_desc="Идентификатор")
-        self.log(f"    Объявлена переменная: {first_id['value']} типа {type_token['value']}")
-
-        # Дополнительные идентификаторы через запятую
-        while True:
-            t = self.current()
-            if t and t['class'] == 2 and t['code'] == self.TL[',']:
-                self.match(2, self.TL[','], expected_desc="','")
-                next_id = self.match(4, expected_desc="Идентификатор")
-                self.log(f"    Объявлена переменная: {next_id['value']} типа {type_token['value']}")
-            else:
-                break
-
     def match(self, cls, code=None, val=None, expected_desc=None):
         t = self.current()
         if not t:
@@ -537,47 +514,48 @@ class Parser:
         self.log("Начало программы: Ожидается '{'")
         self.match(2, self.TL['{'], expected_desc="'{' (Начало блока)")
         self.validate_balance()
-
         while True:
             t = self.current()
             if not t:
                 break
             if t['class'] == 2 and t['code'] == self.TL['}']:
                 break
-
-            # Пропуск пустых команд
             if t['class'] == 2 and t['code'] == self.TL[';']:
                 self.match(2, self.TL[';'], expected_desc="';' (пустая команда)")
                 continue
-
             if t['class'] == 1 and t['code'] in [self.TW['int'], self.TW['float'], self.TW['bool']]:
                 self.parse_declaration()
             else:
                 self.parse_statement()
-
-            # Проверяем точку с запятой после команды
             nt = self.current()
             if not nt:
                 raise SyntaxError("Неожиданный конец программы. Ожидалась ';' или '}'")
-
-            # Если следующий токен - закрывающая фигурная скобка,
-            # то это конец программы, точка с запятой не нужна
             if nt['class'] == 2 and nt['code'] == self.TL['}']:
                 continue
-
-            # Должна быть точка с запятой после команды
             if nt['class'] != 2 or nt['code'] != self.TL[';']:
                 raise SyntaxError(f"Ожидалась ';' после команды. Получено: {self._get_token_info(nt)}")
-
             self.match(2, self.TL[';'], expected_desc="';' (Разделитель команд)")
-
         self.match(2, self.TL['}'], expected_desc="'}' (Конец блока)")
         self.log("Конец программы: найдено '}'")
 
+    def parse_declaration(self):
+        self.log("  Объявление переменных")
+        type_token = self.match(1, expected_desc="Тип данных (int, float, bool)")
+        first_id = self.match(4, expected_desc="Идентификатор")
+        self.log(f"    Объявлена переменная: {first_id['value']} типа {type_token['value']}")
+        while True:
+            t = self.current()
+            if t and t['class'] == 2 and t['code'] == self.TL[',']:
+                self.match(2, self.TL[','], expected_desc="','")
+                next_id = self.match(4, expected_desc="Идентификатор")
+                self.log(f"    Объявлена переменная: {next_id['value']} типа {type_token['value']}")
+            else:
+                break
+
     def parse_statement(self):
         t = self.current()
-        if not t: return
-        # Пропуск пустой команды (;)
+        if not t:
+            return
         if t['class'] == 2 and t['code'] == self.TL[';']:
             return
         if t['class'] == 4:
@@ -604,7 +582,6 @@ class Parser:
     def parse_assignment(self):
         self.log("  Присваивание")
         self.match(4, expected_desc="Идентификатор")
-        # Исправлено: проверяем именно значение ':=' а не код
         t = self.current()
         if t and t['class'] == 2 and t['value'] == ':=':
             self.match(2, val=':=', expected_desc="':='")
@@ -616,7 +593,7 @@ class Parser:
         self.log("  Условный оператор (If)")
         self.match(1, self.TW['if'], expected_desc="'if'")
         self.match(2, self.TL['('], expected_desc="'('")
-        self.parse_expression()
+        self.parse_logical_or()  # Разбираем логическое выражение
         self.match(2, self.TL[')'], expected_desc="')'")
         if 'then' in self.TW:
             self.match(1, self.TW['then'], expected_desc="'then'")
@@ -629,23 +606,28 @@ class Parser:
     def parse_for(self):
         self.log("  Цикл For")
         self.match(1, self.TW['for'], expected_desc="'for' (Начало цикла)")
+        # Ожидаем: <идентификатор> := <выражение>
         t_id = self.current()
         next_t = self.tokens[self.pos + 1] if self.pos + 1 < len(self.tokens) else None
         if t_id and t_id['class'] == 4 and next_t and next_t['value'] == ':=':
             self.parse_assignment()
         else:
             raise SyntaxError("Ожидалось присваивание (ID := Expression) в цикле For")
+        # Ожидаем ключевое слово 'to'
         self.match(1, self.TW['to'], expected_desc="'to' (Ключевое слово)")
+        # Верхняя граница
         self.parse_expression()
+        # Необязательный шаг: 'step <выражение>'
         t = self.current()
         if t and t['class'] == 1 and t['code'] == self.TW.get('step'):
             self.match(1, self.TW['step'], expected_desc="'step'")
             self.parse_expression()
-        # Тело цикла
+        # Тело цикла (один оператор или составной begin...end)
         self.parse_statement()
-        # Если после оператора стоит ;, съедаем её
+        # Если после тела идёт ';', съедаем её (для совместимости с вашим синтаксисом)
         if self.current() and self.current()['code'] == self.TL[';']:
             self.match(2, self.TL[';'], expected_desc="';'")
+        # Обязательное завершение цикла: 'next'
         self.match(1, self.TW['next'], expected_desc="'next' (Конец цикла)")
 
     def parse_while(self):
@@ -661,70 +643,41 @@ class Parser:
     def parse_compound(self):
         self.log("  Составной оператор (Begin...End)")
         self.match(1, self.TW['begin'], expected_desc="'begin'")
-
-        # Если блок пустой (сразу end)
         t = self.current()
         if t['class'] == 1 and t['code'] == self.TW['end']:
             self.match(1, self.TW['end'], expected_desc="'end'")
             return
-
-        # Разбираем первую команду
         self.parse_statement()
-
-        # ОБЯЗАТЕЛЬНО проверяем точку с запятой после первой команды
         nt = self.current()
         if not (nt and nt['class'] == 2 and nt['code'] == self.TL[';']):
             raise SyntaxError(
                 f"Ожидалась ';' после команды в составном операторе. Получено: {self._get_token_info(nt)}")
-
         self.match(2, self.TL[';'], expected_desc="';'")
-
-        # Разбираем остальные команды
         while True:
             t = self.current()
             if not t:
                 raise SyntaxError("Неожиданный конец файла в составном операторе")
-
-            # Если достигли конца составного оператора
             if t['class'] == 1 and t['code'] == self.TW['end']:
                 break
-
-            # Разбираем следующую команду
             self.parse_statement()
-
-            # Проверяем точку с запятой после команды
             nt = self.current()
             if not nt:
                 raise SyntaxError("Неожиданный конец файла в составном операторе")
-
-            # Если следующий токен - 'end', значит это последняя команда
-            # но точка с запятой уже была съедена после предыдущей команды
             if nt['class'] == 1 and nt['code'] == self.TW['end']:
-                # Точка с запятой уже была после предыдущей команды
                 break
-
-            # Должна быть точка с запятой между командами
             if nt['class'] != 2 or nt['code'] != self.TL[';']:
                 raise SyntaxError(f"Ожидалась ';' в составном операторе. Получено: {self._get_token_info(nt)}")
-
             self.match(2, self.TL[';'], expected_desc="';'")
-
         self.match(1, self.TW['end'], expected_desc="'end'")
 
     def parse_io(self, is_r):
         self.log(f"  Ввод/Вывод ({'Read' if is_r else 'Write'})")
         self.match(1, self.TW['readln'] if is_r else self.TW['writeln'], expected_desc="'readln' или 'writeln'")
-
-        # Добавляем проверку на открывающую скобку
         t = self.current()
         if t and t['class'] == 2 and t['value'] == '(':
             self.match(2, self.TL['('], expected_desc="'('")
-
         if is_r:
-            # Первый идентификатор для чтения
             self.match(4, expected_desc="ID переменной")
-
-            # Дополнительные идентификаторы через запятую
             while True:
                 t = self.current()
                 if t and t['class'] == 2 and t['value'] == ',':
@@ -733,7 +686,6 @@ class Parser:
                 else:
                     break
         else:
-            # Для writeln - выражения
             self.parse_expression()
             while True:
                 t = self.current()
@@ -742,71 +694,86 @@ class Parser:
                     self.parse_expression()
                 else:
                     break
-
-        # Добавляем проверку на закрывающую скобку
         t = self.current()
         if t and t['class'] == 2 and t['value'] == ')':
             self.match(2, self.TL[')'], expected_desc="')'")
 
+    # =========================================
+    # Исправленные методы разбора выражений
+    # =========================================
+
     def parse_expression(self):
+        """Выражение верхнего уровня: логическое ИЛИ"""
+        self.parse_logical_or()
+
+    def parse_logical_or(self):
+        """Логическое ИЛИ: expr || expr"""
+        self.parse_logical_and()
+        t = self.current()
+        while t and t['class'] == 2 and t['value'] == '||':
+            self.match(2, val='||', expected_desc="логический оператор '||'")
+            self.parse_logical_and()
+            t = self.current()
+
+    def parse_logical_and(self):
+        """Логическое И: expr && expr"""
+        self.parse_relational()
+        t = self.current()
+        while t and t['class'] == 2 and t['value'] == '&&':
+            self.match(2, val='&&', expected_desc="логический оператор '&&'")
+            self.parse_relational()
+            t = self.current()
+
+    def parse_relational(self):
+        """Реляционные операции: ==, !=, <, <=, >, >="""
         self.parse_simple()
         t = self.current()
-        if t and t['class'] == 2:
-            # Проверяем операторы отношения по значению
-            rel_ops = ['!=', '==', '<', '<=', '>', '>=']
-            if t['value'] in rel_ops:
-                self.match(2, expected_desc="Оператор отношения")
-                self.parse_simple()
+        rel_ops = ['==', '!=', '<', '<=', '>', '>=']
+        if t and t['class'] == 2 and t['value'] in rel_ops:
+            self.match(2, expected_desc="реляционный оператор")
+            self.parse_simple()
 
     def parse_simple(self):
+        """Арифметика: сложение и вычитание"""
         self.parse_term()
         t = self.current()
-        while t and t['class'] == 2:
-            # Проверяем операторы +, -, || по значению
-            if t['value'] in ['+', '-', '||']:
-                self.match(2, expected_desc="Оператор (+, -, ||)")
-                self.parse_term()
-                t = self.current()
-            else:
-                break
+        while t and t['class'] == 2 and t['value'] in ['+', '-']:
+            self.match(2, expected_desc="арифметический оператор '+' или '-'")
+            self.parse_term()
+            t = self.current()
 
     def parse_term(self):
+        """Арифметика: умножение и деление"""
         self.parse_factor()
         t = self.current()
-        while t and t['class'] == 2:
-            # Проверяем операторы *, /, && по значению
-            if t['value'] in ['*', '/', '&&']:
-                self.match(2, expected_desc="Оператор (*, /, &&)")
-                self.parse_factor()
-                t = self.current()
-            else:
-                break
+        while t and t['class'] == 2 and t['value'] in ['*', '/']:
+            self.match(2, expected_desc="арифметический оператор '*' или '/'")
+            self.parse_factor()
+            t = self.current()
 
     def parse_factor(self):
+        """Основа: идентификатор, число, скобки, унарный минус или '!'"""
         t = self.current()
         if not t:
             raise SyntaxError("Ожидался операнд")
-        if t['class'] == 4:
-            self.match(4, expected_desc="Идентификатор")
-        elif t['class'] == 3:
-            self.match(3, expected_desc="Число")
-        elif t['class'] == 2 and t['value'] == '(':
-            self.match(2, val='(', expected_desc="'('")
-            self.parse_expression()
-            self.match(2, val=')', expected_desc="')'")
-        elif t['class'] == 2 and t['value'] == '!':
-            self.match(2, val='!', expected_desc="'!'")
+        if t['class'] == 2 and t['value'] == '!':
+            self.match(2, val='!', expected_desc="унарный логический оператор '!'")
             self.parse_factor()
-        elif t['class'] == 1:
-            if t['value'] in ['true', 'false']:
-                self.match(1, expected_desc="Логическое значение")
-            else:
-                raise SyntaxError(
-                    f"Неверный операнд: {self._get_token_info(t)}. Ожидался идентификатор, число, '(', '!', true или false")
+        elif t['class'] == 2 and t['value'] == '-':
+            self.match(2, val='-', expected_desc="унарный минус")
+            self.parse_factor()
+        elif t['class'] == 4:
+            self.match(4, expected_desc="идентификатор")
+        elif t['class'] == 3:
+            self.match(3, expected_desc="числовая константа")
+        elif t['class'] == 2 and t['value'] == '(':
+            self.match(2, val='(', expected_desc="открывающая скобка '('")
+            self.parse_expression()
+            self.match(2, val=')', expected_desc="закрывающая скобка ')'")
+        elif t['class'] == 1 and t['value'] in ['true', 'false']:
+            self.match(1, expected_desc="логическая константа (true/false)")
         else:
-            raise SyntaxError(
-                f"Неверный операнд: {self._get_token_info(t)}. Ожидался идентификатор, число, '(', '!', true или false")
-
+            raise SyntaxError(f"Неверный операнд: {self._get_token_info(t)}")
 
 # ==========================================
 # 3. СЕМАНТИЧЕСКИЙ АНАЛИЗАТОР (ИСПРАВЛЕННЫЙ С УЧЕТОМ ТРЕБОВАНИЙ)
@@ -1084,14 +1051,14 @@ class SemanticAnalyzer:
             elif token['class'] == 1 and token['code'] == self.TW['for']:
                 self.log("  Проверка цикла for")
                 i += 1  # Пропускаем 'for'
-
                 # Обработка переменной цикла
                 if i < len(self.tokens) and self.tokens[i]['class'] == 4:
                     var_name = self.tokens[i]['value']
-
                     # Проверяем объявление переменной
                     if var_name in self.symbol_table:
+                        # Переменная уже объявлена — отмечаем ее как использованную и инициализированную
                         self.symbol_table[var_name]['used'] = True
+                        self.symbol_table[var_name]['initialized'] = True  # 👈 ДОБАВЛЕНО!
                     else:
                         # Если переменная не найдена, добавляем её как необъявленную
                         self.symbol_table[var_name] = {
@@ -1101,9 +1068,7 @@ class SemanticAnalyzer:
                             'used': True
                         }
                         self.error(f"Использование необъявленной переменной '{var_name}' в for", self.tokens[i])
-
                     i += 1
-
                 continue
 
             # Проверка присваивания
@@ -1208,17 +1173,15 @@ class SemanticAnalyzer:
     def _get_expression_type(self, tokens):
         if not tokens:
             return None
-
         # Если один токен
         if len(tokens) == 1:
             token = tokens[0]
-
             if token['class'] == 4:  # Идентификатор
                 var_name = token['value']
                 if var_name in self.symbol_table:
                     return self.symbol_table[var_name]['type']
                 else:
-                    # Если переменная не в таблице, добавляем как необъявленную
+                    # Если переменная не найдена, добавляем как необъявленную
                     self.symbol_table[var_name] = {
                         'type': 'unknown',
                         'declared': False,
@@ -1227,51 +1190,32 @@ class SemanticAnalyzer:
                     }
                     self.error(f"Использование необъявленной переменной '{var_name}'", token)
                     return 'unknown'
-
             elif token['class'] == 3:  # Число
-                # Определяем тип числа
                 num_val = token['value']
                 if '.' in num_val or 'e' in num_val.lower():
                     return 'float'
                 else:
-                    # Проверяем, не является ли это hex/oct/binary числом
-                    if num_val.lower().endswith('h'):
-                        return 'int'
-                    elif num_val.lower().endswith('b') or num_val.lower().endswith('o'):
-                        return 'int'
-                    elif num_val.lower().endswith('d'):
-                        return 'int'
-                    elif any(c.lower() in 'abcdef' for c in num_val):
-                        return 'int'  # Hex без суффикса
-                    else:
-                        return 'int'
-
+                    return 'int'
             elif token['class'] == 1:  # Ключевое слово
                 if token['code'] in [self.TW['true'], self.TW['false']]:
                     return 'bool'
-
         # Проверяем все операторы в выражении
         for i, token in enumerate(tokens):
             if token['class'] == 2:
                 op_value = token['value']
-
                 # Проверка арифметических операций
                 if op_value in self.arithmetic_ops:
                     left_tokens = tokens[:i]
                     right_tokens = tokens[i + 1:] if i + 1 < len(tokens) else []
-
                     left_type = self._get_expression_type(left_tokens)
                     right_type = self._get_expression_type(right_tokens)
-
                     # Проверка типов для арифметики
                     if left_type and left_type not in ['int', 'float'] and left_type != 'unknown':
                         self.error(f"Неверный тип для арифметической операции '{op_value}': '{left_type}'",
                                    tokens[0] if left_tokens else token)
-
                     if right_type and right_type not in ['int', 'float'] and right_type != 'unknown':
                         self.error(f"Неверный тип для арифметической операции '{op_value}': '{right_type}'",
                                    tokens[i + 1] if i + 1 < len(tokens) else token)
-
                     # Определение результирующего типа
                     if left_type == 'float' or right_type == 'float':
                         return 'float'
@@ -1283,54 +1227,55 @@ class SemanticAnalyzer:
                         return 'int'
                     elif left_type == 'unknown' or right_type == 'unknown':
                         return 'unknown'
-
                 # Проверка логических операций
                 elif op_value in self.logical_ops:
                     left_tokens = tokens[:i]
                     right_tokens = tokens[i + 1:] if i + 1 < len(tokens) else []
-
                     left_type = self._get_expression_type(left_tokens)
                     if op_value != '!':  # Унарный !
                         right_type = self._get_expression_type(right_tokens)
-
                     # Проверка типов для логических операций
                     if left_type and left_type != 'bool' and left_type != 'unknown':
                         self.error(f"Неверный тип для логической операции '{op_value}': '{left_type}'",
                                    tokens[0] if left_tokens else token)
-
                     if op_value != '!' and right_type and right_type != 'bool' and right_type != 'unknown':
                         self.error(f"Неверный тип для логической операции '{op_value}': '{right_type}'",
                                    tokens[i + 1] if i + 1 < len(tokens) else token)
-
                     return 'bool'
-
-                # Проверка операторов отношения
+                # Проверка операторов отношения — ВАЖНО: РЕЗУЛЬТАТ ВСЕГДА BOOL!
                 elif op_value in self.relational_ops:
                     left_tokens = tokens[:i]
                     right_tokens = tokens[i + 1:] if i + 1 < len(self.tokens) else []
-
                     left_type = self._get_expression_type(left_tokens)
                     right_type = self._get_expression_type(right_tokens)
-
                     # Проверка совместимости типов для сравнения
                     if (left_type and right_type and left_type != 'unknown' and
-                        right_type != 'unknown' and not self._types_comparable(left_type, right_type)):
+                            right_type != 'unknown' and not self._types_comparable(left_type, right_type)):
                         self.error(f"Несравнимые типы для операции '{op_value}': '{left_type}' и '{right_type}'", token)
-
+                    # 🔥 ВАЖНО: РЕЗУЛЬТАТ ОПЕРАЦИИ ОТНОШЕНИЯ ВСЕГДА bool!
                     return 'bool'
-
         # Если выражение в скобках
         if tokens and tokens[0]['value'] == '(' and tokens[-1]['value'] == ')':
             return self._get_expression_type(tokens[1:-1])
-
         # Если ничего не найдено, возвращаем None
         return None
 
     def _validate_bool_expression(self, tokens, context):
         """Проверяет, что выражение действительно является булевым"""
-        for i, token in enumerate(tokens):
-            if token['class'] == 2 and token['value'] in self.arithmetic_ops:
-                self.error(f"Арифметическая операция '{token['value']}' недопустима в {context}", token)
+        # Пропускаем простые true/false и переменные
+        if len(tokens) == 1:
+            token = tokens[0]
+            if token['class'] == 1 and token['code'] in [self.TW['true'], self.TW['false']]:
+                return  # OK
+            elif token['class'] == 4:
+                return  # Переменная — проверяется в _get_expression_type
+        # Проверяем, что в выражении есть хотя бы одна логическая операция или операция сравнения
+        has_logical_or_relational = any(
+            token['class'] == 2 and token['value'] in self.logical_ops + self.relational_ops
+            for token in tokens
+        )
+        if not has_logical_or_relational:
+            self.error(f"Выражение в {context} должно содержать логическую или реляционную операцию", tokens[0])
 
     def _validate_operations_in_expression(self, tokens, expected_type, var_name):
         """Проверяет, что операции в выражении допустимы для ожидаемого типа переменной"""
@@ -1656,6 +1601,7 @@ class PolishNotationGenerator:
                 self._sem_error(f"Несовместимые типы для '{op_name}': {t1} и {t2}")
 
         # Операции сравнения
+        # Операции сравнения
         elif op_name in ['>', '<', '>=', '<=', '==', '!=']:
             if t1 == t2:
                 res_type = 'bool'
@@ -1663,7 +1609,6 @@ class PolishNotationGenerator:
                 res_type = 'bool'
             else:
                 self._sem_error(f"Сравнение несовместимых типов: {t1} и {t2}")
-
         # Логические операции
         elif op_name in ['&&', '||']:
             if t1 == 'bool' and t2 == 'bool':
@@ -2403,44 +2348,23 @@ class App:
         self.input_text.pack(fill="both", pady=5)
 
         # Обновленный пример с readln
-        sample = """{
-    int i, sum, count;
-    float avg, pi, x, y;
-    bool flag, ready;
-
-    sum := 0;
-    count := 5;
-    pi := 3.14;    
-    flag := true;
-
-    /* Чтение нескольких переменных */
-    readln(x, y, i);
-
-    /* Корректные операции */
-    avg := sum / count;
-    readln(avg);
-
-    if (avg < pi) then
-        writeln avg;
-
-    /* Цикл */
-    for i := 1 to 10 step 1 begin
-        sum := sum + i;
-        writeln sum;
+        sample = """
+        {
+    int x, n, i;
+    
+    n := 3;
+    for i := 1 to n step 1 begin
+        readln(x);
+        if ((x >= 10) && (x < 20)) then
+            writeln(1)
+        else
+            if ((x >= 20) && (x <= 30)) then
+                writeln(2)
+            else
+                writeln(3);
     end next;
-
-    i := 1;
-    while (i <= 5) do begin
-        writeln i;
-        sum := sum + i;
-        i := i + 1;
-    end;
-
-    /* Еще одно чтение */
-    readln(count);
-
-    writeln avg, pi, x, y, count;
-}"""
+}
+"""
         self.input_text.insert(INSERT, sample)
 
         # Buttons
