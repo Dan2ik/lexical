@@ -7,9 +7,8 @@ import io
 # --- ЛЕКСИЧЕСКИЙ АНАЛИЗАТОР (SCANNER) ---
 class Scanner:
     def __init__(self):
-        # Изменены ключевые слова типов данных согласно Таблице 7
         self.TW = {
-            'int': 1, 'float': 2, 'bool': 3, 'true': 4, 'false': 5,
+            'integer': 1, 'real': 2, 'boolean': 3, 'true': 4, 'false': 5,
             'begin': 6, 'end': 7, 'if': 8, 'else': 9, 'for': 10, 'to': 11,
             'step': 12, 'next': 13, 'while': 14, 'readln': 15, 'writeln': 16
         }
@@ -262,7 +261,6 @@ class Scanner:
                 else:
                     print("Ошибка: после 'E' ожидались цифры."); cs = 'ER'
 
-            # Обработка комментариев согласно Таблице 15 (/* ... */)
             elif cs == 'C1':
                 if self.ch == '*':
                     self.gc(); cs = 'C2'
@@ -343,20 +341,19 @@ class Parser:
         self.rpn_prog = []
         self.sem_ids = {}
         self.sem_stack = []
-        # Таблица семантических операций обновлена под типы int, float, bool
         self.sem_ops_table = {
-            ('+', 'int', 'int'): 'int', ('-', 'int', 'int'): 'int',
-            ('*', 'int', 'int'): 'int', ('/', 'int', 'int'): 'float',
-            ('+', 'float', 'float'): 'float', ('-', 'float', 'float'): 'float',
-            ('*', 'float', 'float'): 'float', ('/', 'float', 'float'): 'float',
-            ('+', 'int', 'float'): 'float', ('+', 'float', 'int'): 'float',
-            ('-', 'int', 'float'): 'float', ('-', 'float', 'int'): 'float',
-            ('*', 'int', 'float'): 'float', ('*', 'float', 'int'): 'float',
-            ('/', 'int', 'float'): 'float', ('/', 'float', 'int'): 'float',
-            ('>', 'int', 'int'): 'bool', ('<', 'int', 'int'): 'bool',
-            ('>=', 'int', 'int'): 'bool', ('<=', 'int', 'int'): 'bool',
-            ('==', 'int', 'int'): 'bool', ('!=', 'int', 'int'): 'bool',
-            ('&&', 'bool', 'bool'): 'bool', ('||', 'bool', 'bool'): 'bool',
+            ('+', 'integer', 'integer'): 'integer', ('-', 'integer', 'integer'): 'integer',
+            ('*', 'integer', 'integer'): 'integer', ('/', 'integer', 'integer'): 'real',
+            ('+', 'real', 'real'): 'real', ('-', 'real', 'real'): 'real',
+            ('*', 'real', 'real'): 'real', ('/', 'real', 'real'): 'real',
+            ('+', 'integer', 'real'): 'real', ('+', 'real', 'integer'): 'real',
+            ('-', 'integer', 'real'): 'real', ('-', 'real', 'integer'): 'real',
+            ('*', 'integer', 'real'): 'real', ('*', 'real', 'integer'): 'real',
+            ('/', 'integer', 'real'): 'real', ('/', 'real', 'integer'): 'real',
+            ('>', 'integer', 'integer'): 'boolean', ('<', 'integer', 'integer'): 'boolean',
+            ('>=', 'integer', 'integer'): 'boolean', ('<=', 'integer', 'integer'): 'boolean',
+            ('==', 'integer', 'integer'): 'boolean', ('!=', 'integer', 'integer'): 'boolean',
+            ('&&', 'boolean', 'boolean'): 'boolean', ('||', 'boolean', 'boolean'): 'boolean',
         }
         self.next_token()
 
@@ -396,7 +393,7 @@ class Parser:
     def sem_check_unary(self, op):
         t = self.sem_stack.pop()
         res = None
-        if op == '!' and t == 'bool': res = 'bool'
+        if op == '!' and t == 'boolean': res = 'boolean'
         if res is None: self.sem_error(f"Несоответствие типов '{op}': {t}")
         self.sem_stack.append(res)
 
@@ -410,13 +407,12 @@ class Parser:
     def sem_check_assignment(self, id_code, id_name):
         rhs = self.sem_stack.pop()
         lhs = self.sem_check_declared(id_code, id_name)
-        # Обновлена проверка приведения типов (int -> float)
-        if lhs != rhs and not (lhs == 'float' and rhs == 'int'):
+        if lhs != rhs and not (lhs == 'real' and rhs == 'integer'):
             self.sem_error(f"Нельзя присвоить '{rhs}' переменной '{lhs}' ({id_name})")
         print(f"  [Семантика] Присваивание OK: {id_name} ({lhs}) := {rhs}")
 
     def sem_check_bool_condition(self, context):
-        if self.sem_stack.pop() != 'bool': self.sem_error(f"В условии '{context}' ожидается bool")
+        if self.sem_stack.pop() != 'boolean': self.sem_error(f"В условии '{context}' ожидается boolean")
 
     def next_token(self):
         self.token_idx += 1
@@ -443,8 +439,7 @@ class Parser:
     def program(self):
         self.expect('{')
         while self.current_token and self.current_token['value'] != '}':
-            # Обновлена проверка типов (int, float, bool)
-            if self.current_token['value'] in ['int', 'float', 'bool']:
+            if self.current_token['value'] in ['integer', 'real', 'boolean']:
                 self.description()
             else:
                 self.statement()
@@ -534,7 +529,7 @@ class Parser:
         self.expect('to')
         self.expression()
         self.gen('<=')
-        if self.sem_stack.pop() != 'int': self.sem_error("Граница for не int")
+        if self.sem_stack.pop() != 'integer': self.sem_error("Граница for не integer")
         exit_idx = self.reserve_rpn_idx()
         self.gen('!F')
 
@@ -547,7 +542,7 @@ class Parser:
                 self.rpn_prog.pop()
             else:
                 self.expression(); self.rpn_prog.pop()
-            if self.sem_stack.pop() != 'int': self.sem_error("Шаг for не int")
+            if self.sem_stack.pop() != 'integer': self.sem_error("Шаг for не integer")
 
         self.statement()
         self.gen(var_name)
@@ -638,13 +633,11 @@ class Parser:
             self.next_token()
         elif tok['class'] == 3:
             val = tok['value'].lower()
-            # Обновлено определение типа литерала: float или int
-            self.sem_push('float' if '.' in val or 'e' in val else 'int')
+            self.sem_push('real' if '.' in val or 'e' in val else 'integer')
             self.gen(tok['value'])
             self.next_token()
         elif tok['value'] in ['true', 'false']:
-            # Обновлен тип литерала: bool
-            self.sem_push('bool')
+            self.sem_push('boolean')
             self.gen(tok['value'])
             self.next_token()
         elif tok['value'] == '!':
@@ -797,119 +790,79 @@ class Interpreter:
 
 
 # --- GUI CLASS ---
-import sys
-import io
-import customtkinter as ctk
-from tkinter import messagebox, simpledialog
-
-
-# --- (Остальной код без изменений: Scanner, Parser, Interpreter остаются как есть) ---
-
-# Вставьте сюда ВЕСЬ ваш исходный код от class Scanner до конца class Interpreter
-# (Без изменений — он совместим с новым GUI)
-
-# --- НОВЫЙ GUI с customtkinter ---
 class CompilerApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Компилятор")
-        self.root.geometry("1100x800")
-        self.root.minsize(900, 600)
+        self.root.geometry("1000x800")
 
-        # Настройка темы
-        ctk.set_appearance_mode("System")  # "Light", "Dark", "System"
-        ctk.set_default_color_theme("blue")
+        style = ttk.Style()
+        style.theme_use('clam')
+        style.configure("TNotebook.Tab", font=('Helvetica', 10, 'bold'))
 
-        # Основной контейнер
-        self.main_frame = ctk.CTkFrame(root, fg_color="transparent")
-        self.main_frame.pack(fill="both", expand=True, padx=15, pady=15)
+        main_frame = ttk.Frame(root, padding="10")
+        main_frame.pack(fill=tk.BOTH, expand=True)
 
-        # Заголовок
-        title_label = ctk.CTkLabel(
-            self.main_frame,
-            text="Компилятор (Лексика → Семантика → ПОЛИЗ → Интерпретация)",
-            font=ctk.CTkFont(size=18, weight="bold")
-        )
-        title_label.pack(pady=(0, 10))
+        top_frame = ttk.Frame(main_frame)
+        top_frame.pack(fill=tk.BOTH, expand=True, pady=(0, 10))
 
-        # Поле ввода кода
-        input_label = ctk.CTkLabel(self.main_frame, text="Код программы:", font=ctk.CTkFont(size=14, weight="bold"))
-        input_label.pack(anchor="w", padx=5)
+        ttk.Label(top_frame, text="Исходный код:", font=('Helvetica', 12, 'bold')).pack(anchor=tk.W)
+        self.input_text = tk.Text(top_frame, height=15, font=('Consolas', 11))
+        self.input_text.pack(fill=tk.BOTH, expand=True, pady=5)
 
-        self.input_text = ctk.CTkTextbox(
-            self.main_frame,
-            height=180,
-            font=("Consolas", 13),
-            wrap="none"
-        )
-        self.input_text.pack(fill="both", expand=False, pady=(5, 10))
-
-        # Кнопка запуска
-        self.run_btn = ctk.CTkButton(
-            self.main_frame,
-            text="Анализ и Интерпретация",
-            command=self.run_analysis,
-            font=ctk.CTkFont(size=14, weight="bold"),
-            height=40,
-            fg_color="#2E8B57",
-            hover_color="#3CB371"
-        )
-        self.run_btn.pack(fill="x", pady=(0, 15))
-
-        # Вкладки
-        self.notebook = ctk.CTkTabview(self.main_frame, segmented_button_fg_color="#3A7EBF")
-        self.notebook.pack(fill="both", expand=True)
-
-        # Добавление вкладок
-        self.tab_tokens = self.notebook.add("Лексика (Токены)")
-        self.tab_semantics = self.notebook.add("Семантика")
-        self.tab_rpn = self.notebook.add("ПОЛИЗ")
-        self.tab_trace = self.notebook.add("Ход Интерпретации")
-        self.tab_console = self.notebook.add("Консоль / Ошибки")
-
-        # Создание текстовых полей во вкладках
-        self.text_widgets = {}
-        for name, tab in zip(
-                ["tokens", "semantics", "rpn", "trace", "console"],
-                [self.tab_tokens, self.tab_semantics, self.tab_rpn, self.tab_trace, self.tab_console]
-        ):
-            text = ctk.CTkTextbox(tab, font=("Consolas", 12), wrap="none")
-            text.pack(fill="both", expand=True, padx=5, pady=5)
-            self.text_widgets[name] = text
-
-        # Пример кода
         default_code = """{
-    int x, n, i;
-
-    n := 3;
-    for i := 1 to n step 1 begin
-        readln x;
-        if ((x >= 10) && (x < 20))
-            writeln(1)
-        else
-            if ((x >= 20) && (x <= 30))
-                writeln(2)
-        else
-            writeln(3)
-    end next;
+    integer n, f, i;
+    n := 5;
+    f := 1;
+    for i := 1 to n step 1 
+        f := f * i
+    next;
+    writeln f;
 }"""
         self.input_text.insert("1.0", default_code)
 
-    def write_to_tab(self, tab_name, content):
-        widget = self.text_widgets[tab_name]
-        widget.delete("1.0", "end")
-        widget.insert("1.0", content)
+        run_btn = ttk.Button(top_frame, text="▶ Запустить Анализ и Интерпретацию", command=self.run_analysis)
+        run_btn.pack(fill=tk.X, pady=5)
+
+        self.notebook = ttk.Notebook(main_frame)
+        self.notebook.pack(fill=tk.BOTH, expand=True)
+
+        self.tab_tokens = self.create_tab("Лексика (Токены)")
+        self.tab_semantics = self.create_tab("Семантика")
+        self.tab_rpn = self.create_tab("ПОЛИЗ")
+        self.tab_trace = self.create_tab("Ход Интерпретации")
+        self.tab_console = self.create_tab("Консоль / Ошибки")
+
+    def create_tab(self, title):
+        frame = ttk.Frame(self.notebook)
+        self.notebook.add(frame, text=title)
+        text_widget = tk.Text(frame, state='disabled', font=('Consolas', 10), wrap=tk.NONE)
+
+        ys = ttk.Scrollbar(frame, orient='vertical', command=text_widget.yview)
+        xs = ttk.Scrollbar(frame, orient='horizontal', command=text_widget.xview)
+        text_widget['yscrollcommand'] = ys.set
+        text_widget['xscrollcommand'] = xs.set
+
+        ys.pack(side=tk.RIGHT, fill=tk.Y)
+        xs.pack(side=tk.BOTTOM, fill=tk.X)
+        text_widget.pack(fill=tk.BOTH, expand=True)
+        return text_widget
+
+    def write_to_tab(self, tab, content):
+        tab.config(state='normal')
+        tab.delete("1.0", tk.END)
+        tab.insert("1.0", content)
+        tab.config(state='disabled')
 
     def gui_input_callback(self, prompt):
         return simpledialog.askstring("Ввод данных", prompt, parent=self.root)
 
     def run_analysis(self):
-        source_code = self.input_text.get("1.0", "end").strip()
+        source_code = self.input_text.get("1.0", tk.END).strip()
         if not source_code:
             messagebox.showwarning("Внимание", "Введите исходный код!")
             return
 
-        # Перенаправление вывода
         log_tokens = io.StringIO()
         log_semantics = io.StringIO()
         log_rpn = io.StringIO()
@@ -918,61 +871,55 @@ class CompilerApp:
 
         original_stdout = sys.stdout
 
-        success = False
         try:
             sys.stdout = log_tokens
+            print("=== ЛЕКСИЧЕСКИЙ АНАЛИЗ ===")
             scanner = Scanner()
             tokens = scanner.scan(source_code)
-            if not tokens:
-                raise ValueError("Лексический анализ завершился с ошибкой.")
+
+            if not tokens: raise ValueError("Лексический анализ не вернул токенов.")
 
             sys.stdout = log_semantics
+            print("=== СЕМАНТИЧЕСКИЙ АНАЛИЗ ===")
             parser = Parser(tokens)
             parser.program()
+            print("\n--- Таблица Идентификаторов ---")
+            for k, v in parser.sem_ids.items(): print(f"{k}: {v}")
 
             sys.stdout = log_rpn
-            rpn_str = "  ".join(f"{i}:{item}" for i, item in enumerate(parser.rpn_prog))
+            rpn_str = ""
+            for idx, item in enumerate(parser.rpn_prog):
+                rpn_str += f"{idx}:{item}  "
             print(rpn_str)
 
             sys.stdout = log_trace
             interpreter = Interpreter(parser.rpn_prog, input_func=self.gui_input_callback)
             interpreter.execute()
 
-            log_console.write("✅ Анализ и выполнение завершены успешно.\n")
-            success = True
+            log_console.write("Анализ и выполнение завершены успешно.\n")
 
         except SystemExit:
-            log_console.write("\n❌ Процесс остановлен из-за ошибки (см. вкладки).\n")
+            log_console.write("\nПроцесс был остановлен из-за ошибки (см. вкладки).\n")
         except Exception as e:
-            log_console.write(f"\n💥 Критическая ошибка: {str(e)}\n")
+            log_console.write(f"\nКритическая ошибка: {str(e)}\n")
             import traceback
             traceback.print_exc(file=log_console)
         finally:
             sys.stdout = original_stdout
 
-        # Обновление вкладок
-        self.write_to_tab("tokens", log_tokens.getvalue())
-        self.write_to_tab("semantics", log_semantics.getvalue())
-        self.write_to_tab("rpn", log_rpn.getvalue())
-        self.write_to_tab("trace", log_trace.getvalue())
-        self.write_to_tab("console", log_console.getvalue())
+        self.write_to_tab(self.tab_tokens, log_tokens.getvalue())
+        self.write_to_tab(self.tab_semantics, log_semantics.getvalue())
+        self.write_to_tab(self.tab_rpn, log_rpn.getvalue())
+        self.write_to_tab(self.tab_trace, log_trace.getvalue())
+        self.write_to_tab(self.tab_console, log_console.getvalue())
 
-        # Автоматический переход на вкладку с ошибками или трассой
-        if success:
-            self.notebook.set("Ход Интерпретации")
+        if "Критическая ошибка" in log_console.getvalue() or "остановлен" in log_console.getvalue():
+            self.notebook.select(self.tab_console.master)
         else:
-            self.notebook.set("Консоль / Ошибки")
+            self.notebook.select(self.tab_trace.master)
 
 
-# --- ВСТАВЬТЕ СЮДА ВЕСЬ ВАШ КОД ОТ class Scanner ДО class Interpreter (без изменений) ---
-# (Для полноты, он уже включён в эту версию, но в реальности вы просто копируете его выше)
-
-# --- ЗАПУСК ---
 if __name__ == "__main__":
-    # Вставка вашего полного кода Scanner/Parser/Interpreter здесь (без изменений)
-
-    # [Ваш код Scanner, Parser, Interpreter — без изменений!]
-
-    root = ctk.CTk()
+    root = tk.Tk()
     app = CompilerApp(root)
     root.mainloop()

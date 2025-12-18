@@ -1,5 +1,5 @@
 import customtkinter as ctk
-from tkinter import END, INSERT
+from tkinter import END, INSERT, simpledialog, messagebox
 
 
 # ==========================================
@@ -1361,1010 +1361,310 @@ class SemanticAnalyzer:
         return report
 
 
+# ==========================================
+# 4. ГЕНЕРАТОР ПОЛЬСКОЙ ЗАПИСИ (RPN GENERATOR)
+# ==========================================
 class PolishNotationGenerator:
     def __init__(self, tokens, tw, tl, ti, tn, rev_tw, rev_tl):
         self.tokens = tokens
-        self.TW = tw
-        self.TL = tl
-        self.TI = ti
+        self.TW = tw;
+        self.TL = tl;
+        self.TI = ti;
         self.TN = tn
-        self.REV_TW = rev_tw
+        self.REV_TW = rev_tw;
         self.REV_TL = rev_tl
         self.P = []
-        self.free = 1
-        self.label_stack = []
-        self.REV_TI = {v: k for k, v in self.TI.items()}
-        self.REV_TN = {v: k for k, v in self.TN.items()}
-        self.sem_ti = {code: {'name': name, 'declared': False, 'type': None}
-                       for name, code in self.TI.items()}
+        self.sem_ti = {code: {'name': name, 'type': None} for name, code in self.TI.items()}
         self.sem_stack = []
-        self.log = []
         self.errors = []
+        self.readln_vars = []
 
     class PolizLabel:
-        def __init__(self, value=0):
-            self.value = value
+        def __init__(self, value=0): self.value = value
 
-        def __repr__(self):
-            return f"L{self.value}"
+        def __repr__(self): return f"L{self.value}"
 
     class PolizAddress:
-        def __init__(self, name, index):
-            self.name = name
-            self.index = index
+        def __init__(self, name, index): self.name = name; self.index = index
 
-        def __repr__(self):
-            return f"&{self.name}"
+        def __repr__(self): return f"&{self.name}"
 
     class PolizOp:
-        def __init__(self, op):
-            self.op = op
+        def __init__(self, op): self.op = op
 
-        def __repr__(self):
-            return f"{self.op}"
+        def __repr__(self): return f"{self.op}"
 
     def _add_to_poliz(self, item_type, value):
         if item_type == 'VAR':
-            var_code = self.TI.get(value)
-            if var_code:
-                self.P.append(self.PolizAddress(value, var_code))
-            else:
-                code = len(self.TI) + 1
-                self.TI[value] = code
-                self.REV_TI[code] = value
-                self.P.append(self.PolizAddress(value, code))
-        elif item_type == 'VAL':
-            var_code = self.TI.get(value)
-            if var_code:
-                self.P.append(self.PolizAddress(value, var_code))
-                self.P.append(self.PolizOp('@'))
-            else:
-                code = len(self.TI) + 1
-                self.TI[value] = code
-                self.REV_TI[code] = value
-                self.P.append(self.PolizAddress(value, code))
-                self.P.append(self.PolizOp('@'))
+            self.P.append(self.PolizAddress(value, self.TI.get(value, 0)))
         elif item_type == 'NUM':
-            num_code = self.TN.get(value)
-            if num_code:
-                try:
-                    if '.' in value or 'e' in value.lower():
-                        self.P.append(float(value))
-                    else:
-                        self.P.append(int(value))
-                except:
-                    self.P.append(0)
-            else:
-                code = len(self.TN) + 1
-                self.TN[value] = code
-                self.REV_TN[code] = value
-                try:
-                    if '.' in value or 'e' in value.lower():
-                        self.P.append(float(value))
-                    else:
-                        self.P.append(int(value))
-                except:
-                    self.P.append(0)
+            try:
+                self.P.append(float(value) if '.' in value or 'e' in value.lower() else int(value))
+            except:
+                self.P.append(0)
         elif item_type == 'BOOL':
-            if value == 'true':
-                self.P.append(True)
-            else:
-                self.P.append(False)
+            self.P.append(True if value == 'true' else False)
         elif item_type == 'OP':
             self.P.append(self.PolizOp(value))
         elif item_type == 'LABEL':
             self.P.append(self.PolizLabel(value))
-        self.free += 1
 
     def _put_label_placeholder(self):
         idx = len(self.P)
         self.P.append(None)
-        self.free += 1
         return idx
 
     def _patch_label(self, idx, value):
         self.P[idx] = self.PolizLabel(value)
 
-    def _sem_error(self, msg):
-        self.errors.append(f"[Семантика] {msg}")
-        raise SyntaxError(msg)
-
-    def _stack_push_type(self, type_val):
-        self.sem_stack.append(type_val)
-
-    def _stack_pop_type(self):
-        if not self.sem_stack:
-            self._sem_error("Стек типов пуст")
-        return self.sem_stack.pop()
-
-    def _check_op(self, op_name):
-        # ИСПРАВЛЕНО: для унарных операций берем только один операнд
-        if op_name == '!':
-            t1 = self._stack_pop_type()
-            if t1 == 'bool':
-                res_type = 'bool'
-            else:
-                self._sem_error(f"Операция '!' требует bool, дано: {t1}")
-            self._stack_push_type(res_type)
-            return
-        # Для бинарных операций берем два операнда
-        t2 = self._stack_pop_type()
-        t1 = self._stack_pop_type()
-        res_type = None
-        if op_name in ['+', '-', '*', '/']:
-            if t1 == 'int' and t2 == 'int':
-                res_type = 'int'
-            elif t1 == 'float' and t2 == 'float':
-                res_type = 'float'
-            elif (t1 == 'int' and t2 == 'float') or (t1 == 'float' and t2 == 'int'):
-                res_type = 'float'
-            else:
-                self._sem_error(f"Несовместимые типы для '{op_name}': {t1} и {t2}")
-        elif op_name in ['>', '<', '>=', '<=', '==', '!=']:
-            # ИСПРАВЛЕНО: операции сравнения ВСЕГДА возвращают bool
-            if t1 == t2:
-                res_type = 'bool'
-            elif (t1 in ['int', 'float']) and (t2 in ['int', 'float']):
-                res_type = 'bool'
-            elif t1 == 'bool' and t2 == 'bool':
-                res_type = 'bool'
-            elif t1 == 'unknown' or t2 == 'unknown':
-                res_type = 'bool'  # Для unknown тоже возвращаем bool, чтобы не блокировать генерацию
-            else:
-                self._sem_error(f"Сравнение несовместимых типов: {t1} и {t2}")
-        elif op_name in ['&&', '||']:
-            if t1 == 'bool' and t2 == 'bool':
-                res_type = 'bool'
-            else:
-                self._sem_error(f"Логическая операция требует bool, дано: {t1}, {t2}")
-        else:
-            self._sem_error(f"Неизвестная операция {op_name}")
-        self._stack_push_type(res_type)
-
     def _process_expression(self, start_idx, require_value=True):
-        # ИСПРАВЛЕНО: сохраняем состояние стека типов перед обработкой выражения
-        # (не очищаем, так как стек может использоваться для вложенных выражений)
         i = start_idx
-        output = []
         stack = []
-        priority = {
-            '!': 6,
-            '*': 5, '/': 5, '%': 5,
-            '+': 4, '-': 4,
-            '<': 3, '<=': 3, '>': 3, '>=': 3, '==': 3, '!=': 3,
-            '&&': 2,
-            '||': 1,
-            '(': -1  # Скобка имеет самый низкий приоритет
-        }
+        priority = {'!': 6, '*': 5, '/': 5, '+': 4, '-': 4, '<': 3, '>': 3, '==': 3, '!=': 3, '&&': 2, '||': 1, '(': -1}
+
         while i < len(self.tokens):
             token = self.tokens[i]
-            # ИСПРАВЛЕНО: не прерываем на ')', так как она обрабатывается отдельно
-            if token['value'] in [';', ',', 'then', 'do', 'to', 'step', 'else', '}', ':=', 'begin', 'end', 'next']:
-                break
-            # ')' обрабатывается отдельно, не прерываем на ней
+            if token['value'] in [';', ',', 'then', 'do', 'to', 'step', 'else', '}', ':=', 'begin', 'end',
+                                  'next']: break
+
             if token['class'] == 4:
-                var_name = token['value']
-                var_code = self.TI.get(var_name)
-                if var_code and var_code in self.sem_ti:
-                    var_type = self.sem_ti[var_code]['type']
-                    self._stack_push_type(var_type)
-                else:
-                    self._stack_push_type('unknown')
-                self._add_to_poliz('VAR', var_name)
+                self._add_to_poliz('VAR', token['value'])
                 self._add_to_poliz('OP', '@')
-                output.append(('VAL', var_name))
             elif token['class'] == 3:
-                num_val = token['value']
-                if '.' in num_val or 'e' in num_val.lower():
-                    self._stack_push_type('float')
-                else:
-                    self._stack_push_type('int')
-                output.append(('NUM', num_val))
-                self._add_to_poliz('NUM', num_val)
+                self._add_to_poliz('NUM', token['value'])
             elif token['class'] == 1 and token['value'] in ['true', 'false']:
-                self._stack_push_type('bool')
-                output.append(('BOOL', token['value']))
                 self._add_to_poliz('BOOL', token['value'])
             elif token['class'] == 2:
                 op = token['value']
                 if op == '(':
-                    # 👇 ИСПРАВЛЕНО: Добавляем скобку в стек, НЕ в выходной поток
                     stack.append(op)
                 elif op == ')':
-                    # 👇 ИСПРАВЛЕНО: Обрабатываем закрывающую скобку
-                    while stack and stack[-1] != '(':
-                        output_op = stack.pop()
-                        output.append(('OP', output_op))
-                        self._add_to_poliz('OP', output_op)
-                        self._check_op(output_op)
-                    if stack:
-                        stack.pop()  # Убираем '(' из стека
+                    while stack and stack[-1] != '(': self._add_to_poliz('OP', stack.pop())
+                    if stack: stack.pop()
                 else:
-                    # Обработка унарных операций
-                    if op == '!' and (i == start_idx or
-                                      (i > start_idx and self.tokens[i - 1]['value'] in ['(', ',', '=', ':=', 'then',
-                                                                                         'do', '&&', '||', '==', '!=',
-                                                                                         '<', '<=', '>', '>='])):
-                        # Унарный ! - обрабатываем сразу
-                        self._add_to_poliz('OP', '!')
-                        self._check_op('!')
-                        i += 1
-                        continue
-                    if op == '-' and (i == start_idx or
-                                      (i > start_idx and self.tokens[i - 1]['value'] in ['(', ',', '=', ':=', 'then',
-                                                                                         'do'])):
-                        op = 'u-'
-                    op_priority = priority.get(op, 0)
-                    while (stack and stack[-1] != '(' and
-                           priority.get(stack[-1], 0) >= op_priority):
-                        output_op = stack.pop()
-                        output.append(('OP', output_op))
-                        self._add_to_poliz('OP', output_op)
-                        self._check_op(output_op)
-                    # 👇 ИСПРАВЛЕНО: Добавляем оператор в стек, НЕ в выходной поток
+                    while stack and stack[-1] != '(' and priority.get(stack[-1], 0) >= priority.get(op, 0):
+                        self._add_to_poliz('OP', stack.pop())
                     stack.append(op)
             i += 1
-        # 👇 ИСПРАВЛЕНО: Выталкиваем все оставшиеся операторы из стека
-        while stack:
-            output_op = stack.pop()
-            if output_op != '(':  # Пропускаем лишние открывающие скобки
-                output.append(('OP', output_op))
-                self._add_to_poliz('OP', output_op)
-                self._check_op(output_op)
+        while stack: self._add_to_poliz('OP', stack.pop())
         return i
 
     def generate(self):
         self.P = []
-        self.free = 1
-        self.label_stack = []
-        self.log = []
-        self.errors = []
-        try:
-            self._collect_declarations()
-            pos = 0
-            while pos < len(self.tokens):
-                if self.tokens[pos]['value'] == '{':
-                    pos += 1
-                    break
-                pos += 1
-            while pos < len(self.tokens):
-                token = self.tokens[pos]
-                if token['value'] == '}':
-                    break
-                if token['value'] == ';':
-                    pos += 1
-                    continue
-                pos = self._process_statement(pos)
-            self._add_to_poliz('OP', '.')
-        except Exception as e:
-            self.errors.append(f"Ошибка генерации ПОЛИЗ: {str(e)}")
+        pos = 0
+        while pos < len(self.tokens):
+            if self.tokens[pos]['value'] == '{': pos += 1; break
+            pos += 1
+
+        while pos < len(self.tokens):
+            if self.tokens[pos]['value'] == '}': break
+            if self.tokens[pos]['value'] == ';': pos += 1; continue
+            pos = self._process_statement(pos)
+        self._add_to_poliz('OP', '.')
         return self.P, self.errors
 
-    def _collect_declarations(self):
-        i = 0
-        while i < len(self.tokens):
-            token = self.tokens[i]
-            if token['class'] == 1 and token['code'] in [self.TW['int'], self.TW['float'], self.TW['bool']]:
-                var_type = self.REV_TW[token['code']]
-                i += 1
-                while i < len(self.tokens) and self.tokens[i]['class'] == 4:
-                    var_name = self.tokens[i]['value']
-                    var_code = self.TI.get(var_name)
-                    if var_code:
-                        self.sem_ti[var_code] = {
-                            'name': var_name,
-                            'declared': True,
-                            'type': var_type
-                        }
-                    i += 1
-                    if i < len(self.tokens) and self.tokens[i]['value'] == ',':
-                        i += 1
-                    elif i < len(self.tokens) and self.tokens[i]['value'] == ';':
-                        break
-            else:
-                i += 1
-
     def _process_statement(self, start_idx):
-        if start_idx >= len(self.tokens):
-            return start_idx
-        token = self.tokens[start_idx]
-        if token['class'] == 4 and start_idx + 1 < len(self.tokens) and self.tokens[start_idx + 1]['value'] == ':=':
-            return self._process_assignment(start_idx)
-        elif token['class'] == 1 and token['code'] == self.TW['if']:
-            return self._process_if(start_idx)
-        elif token['class'] == 1 and token['code'] == self.TW['while']:
-            return self._process_while(start_idx)
-        elif token['class'] == 1 and token['code'] == self.TW['for']:
-            return self._process_for(start_idx)
-        elif token['class'] == 1 and token['code'] == self.TW['readln']:
-            return self._process_read(start_idx)
-        elif token['class'] == 1 and token['code'] == self.TW['writeln']:
-            return self._process_write(start_idx)
-        elif token['class'] == 1 and token['code'] == self.TW['begin']:
-            return self._process_compound(start_idx)
-        else:
-            return start_idx + 1
-
-    def _process_assignment(self, start_idx):
-        var_token = self.tokens[start_idx]
-        var_name = var_token['value']
-        self._add_to_poliz('VAR', var_name)
-        i = start_idx + 2
-        expr_end = self._find_expression_end(i)
-        i = self._process_expression(i, require_value=True)
-        self._add_to_poliz('OP', ':=')
-        return expr_end
-
-    def _process_if(self, start_idx):
-        i = start_idx + 1
-        if self.tokens[i]['value'] == '(':
-            i += 1
-        expr_end = self._find_matching_parenthesis(i - 1)
-        # Обработка условия
-        cond_start = i
-        cond_end = expr_end
-        # Генерируем код условия
-        # ИСПРАВЛЕНО: сохраняем размер стека типов перед обработкой условия
-        stack_size_before = len(self.sem_stack)
-        expr_end_actual = self._process_expression(cond_start)
-        # ИСПРАВЛЕНО: проверяем, что стек типов содержит ровно на один тип больше, чем было
-        stack_size_after = len(self.sem_stack)
-        if stack_size_after <= stack_size_before:
-            self._sem_error("Стек типов не содержит результат условия в if")
-        # Берем только последний добавленный тип (результат условия)
-        # Удаляем все типы, которые были добавлены во время обработки условия, кроме последнего
-        while len(self.sem_stack) > stack_size_before + 1:
-            self._stack_pop_type()  # Удаляем лишние типы
-        cond_type = self._stack_pop_type()
-        # ИСПРАВЛЕНО: если тип unknown, это может быть нормально (переменная не объявлена)
-        # Но для условия if нужен bool
-        if cond_type and cond_type != 'bool' and cond_type != 'unknown':
-            self._sem_error(f"Условие в if должно быть булевским, получен тип: {cond_type}")
-
-        # Создаем метку для перехода к else
-        label_else = self._put_label_placeholder()
-
-        # Добавляем операцию !F (если ложь, прыгаем на else)
-        self._add_to_poliz('OP', '!F')
-
-        # Переходим к телу 'then'
-        i = cond_end + 1
-        if i < len(self.tokens) and self.tokens[i]['class'] == 1 and self.tokens[i]['code'] == self.TW['then']:
-            i += 1
-
-        # Обрабатываем тело 'then' (может быть составным оператором)
-        i = self._process_statement(i)
-
-        # Создаем метку для выхода из всего if
-        label_after = self._put_label_placeholder()
-        # Добавляем безусловный переход за else
-        self._add_to_poliz('OP', '!!')  # Безусловный переход
-
-        # Устанавливаем метку для else
-        self._patch_label(label_else, len(self.P))
-
-        # Обрабатываем тело 'else'
-        if i < len(self.tokens) and self.tokens[i]['class'] == 1 and self.tokens[i]['code'] == self.TW['else']:
-            i += 1
+        t = self.tokens[start_idx]
+        if t['class'] == 4 and self.tokens[start_idx + 1]['value'] == ':=':
+            self._add_to_poliz('VAR', t['value'])
+            i = self._process_expression(start_idx + 2)
+            self._add_to_poliz('OP', ':=')
+            return i
+        elif t['code'] == self.TW['if']:
+            i = self._process_expression(start_idx + 1 + (1 if self.tokens[start_idx + 1]['value'] == '(' else 0))
+            if i < len(self.tokens) and self.tokens[i]['value'] == ')': i += 1
+            if i < len(self.tokens) and self.tokens[i]['code'] == self.TW['then']: i += 1
+            lbl_else = self._put_label_placeholder()
+            self._add_to_poliz('OP', '!F')
             i = self._process_statement(i)
-
-        # Устанавливаем метку для конца if
-        self._patch_label(label_after, len(self.P))
-        return i
-
-    def _process_while(self, start_idx):
-        i = start_idx + 1
-        label_start = len(self.P)
-        if self.tokens[i]['value'] == '(':
-            i += 1
-        expr_end = self._find_matching_parenthesis(i - 1)
-        self._process_expression(i)
-        cond_type = self._stack_pop_type()
-        if cond_type != 'bool' and cond_type != 'unknown':
-            self._sem_error("Условие в while должно быть булевским")
-        label_exit = self._put_label_placeholder()
-        self._add_to_poliz('OP', '!F')
-        i = expr_end + 1
-        if i < len(self.tokens) and self.tokens[i]['class'] == 1 and self.tokens[i]['code'] == self.TW['do']:
-            i += 1
-        i = self._process_statement(i)
-        self._add_to_poliz('LABEL', label_start)
-        self._add_to_poliz('OP', '!!')  # Безусловный переход на начало цикла
-        self._patch_label(label_exit, len(self.P))
-        return i
-
-    def _process_for(self, start_idx):
-        # for присв to expr [step expr] оператор next
-        i = start_idx + 1
-
-        # 1. Получаем имя переменной цикла
-        loop_var = self.tokens[i]['value']
-
-        # 2. Обрабатываем присваивание (i := start)
-        init_end = self._process_assignment(i)
-        i = init_end
-
-        # Пропускаем до 'to'
-        while i < len(self.tokens) and not (
-                self.tokens[i]['class'] == 1 and self.tokens[i]['code'] == self.TW['to']
-        ):
-            i += 1
-        if i < len(self.tokens):
-            i += 1  # Пропускаем 'to'
-
-        # 3. Сохраняем верхнюю границу во временную переменную (или просто запоминаем выражение)
-        # Для простоты будем каждый раз вычислять верхнюю границу
-        upper_bound_start = i
-        upper_bound_end = self._find_expression_end(i)
-
-        # 4. Обрабатываем step если есть
-        step_value = 1
-        step_start = None
-        step_end = None
-        i = upper_bound_end
-        if i < len(self.tokens) and self.tokens[i]['class'] == 1 and self.tokens[i]['code'] == self.TW['step']:
-            i += 1  # Пропускаем 'step'
-            step_start = i
-            step_end = self._find_expression_end(i)
-            i = step_end
-
-        # 5. Метка начала проверки условия
-        label_check = len(self.P)
-
-        # 6. Генерируем условие: loop_var <= upper_bound
-        self._add_to_poliz('VAR', loop_var)
-        self._add_to_poliz('OP', '@')
-        self._process_expression(upper_bound_start)
-        self._add_to_poliz('OP', '<=')
-
-        # 7. Метка для выхода из цикла
-        label_exit = self._put_label_placeholder()
-        self._add_to_poliz('OP', '!F')
-
-        # 8. Тело цикла
-        body_end = self._process_statement(i)
-        i = body_end
-
-        # Пропускаем ; если есть
-        if i < len(self.tokens) and self.tokens[i]['value'] == ';':
-            i += 1
-
-        # 9. Инкремент: loop_var := loop_var + step
-        self._add_to_poliz('VAR', loop_var)
-        self._add_to_poliz('VAR', loop_var)
-        self._add_to_poliz('OP', '@')
-        if step_start is not None:
-            self._process_expression(step_start)
-        else:
-            self._add_to_poliz('NUM', '1')
-        self._add_to_poliz('OP', '+')
-        self._add_to_poliz('OP', ':=')
-
-        # 10. Переход на начало цикла
-        self._add_to_poliz('LABEL', label_check)
-        self._add_to_poliz('OP', '!!')
-
-        # 11. Устанавливаем метку выхода
-        self._patch_label(label_exit, len(self.P))
-
-        # 12. Пропускаем 'next'
-        if i < len(self.tokens) and self.tokens[i]['class'] == 1 and self.tokens[i]['code'] == self.TW['next']:
-            i += 1
-
-        return i
-
-    def _process_read(self, start_idx):
-        i = start_idx + 1
-        if i < len(self.tokens) and self.tokens[i]['value'] == '(':
-            i += 1
-        first_var = True
-        while i < len(self.tokens) and self.tokens[i]['value'] not in [';', ')']:
-            if self.tokens[i]['class'] == 4:
-                var_name = self.tokens[i]['value']
-                var_code = self.TI.get(var_name)
-                if var_code and var_code in self.sem_ti:
-                    var_type = self.sem_ti[var_code]['type']
-                    if var_type == 'bool':
-                        self._sem_error(f"Операция readln не поддерживается для переменной типа bool: '{var_name}'")
-                else:
-                    if var_name not in self.TI:
-                        code = len(self.TI) + 1
-                        self.TI[var_name] = code
-                        self.REV_TI[code] = var_name
-                        self.sem_ti[code] = {
-                            'name': var_name,
-                            'declared': False,
-                            'type': 'unknown'
-                        }
-                self._add_to_poliz('VAR', var_name)
-                self._add_to_poliz('OP', 'R')
-                i += 1
-                first_var = False
-            elif self.tokens[i]['value'] == ',':
-                i += 1
-                if i >= len(self.tokens) or self.tokens[i]['class'] != 4:
-                    self._sem_error("Ожидался идентификатор переменной после ',' в readln")
-            else:
-                break
-        if i < len(self.tokens) and self.tokens[i]['value'] == ')':
-            i += 1
-        return i
-
-    def _process_write(self, start_idx):
-        i = start_idx + 1
-        if i < len(self.tokens) and self.tokens[i]['value'] == '(':
-            i += 1
-        while i < len(self.tokens) and self.tokens[i]['value'] not in [')', ';', '}']:
-            if self.tokens[i]['value'] == ',':
-                i += 1
-                continue
-            # ИСПРАВЛЕНО: не используем _find_expression_end
-            old_i = i
-            i = self._process_expression(i, require_value=True)
-            if i == old_i:
-                i += 1  # Защита от зависания
-            self._add_to_poliz('OP', 'W')
-        if i < len(self.tokens) and self.tokens[i]['value'] == ')':
-            i += 1
-        return i
-
-    def _process_compound(self, start_idx):
-        # begin оператор { ; оператор } end
-        i = start_idx + 1  # Пропускаем 'begin'
-        while i < len(self.tokens):
-            token = self.tokens[i]
-            # Проверяем на 'end'
-            if token['class'] == 1 and token['code'] == self.TW['end']:
-                return i + 1
-            # Пропускаем ;
-            if token['class'] == 2 and token['value'] == ';':
-                i += 1
-                continue
-            # Обрабатываем оператор
+            lbl_end = self._put_label_placeholder()
+            self._add_to_poliz('OP', '!!')
+            self._patch_label(lbl_else, len(self.P))
+            if i < len(self.tokens) and self.tokens[i]['code'] == self.TW['else']:
+                i = self._process_statement(i + 1)
+            self._patch_label(lbl_end, len(self.P))
+            return i
+        elif t['code'] == self.TW['while']:
+            lbl_start = len(self.P)
+            i = self._process_expression(start_idx + 1 + (1 if self.tokens[start_idx + 1]['value'] == '(' else 0))
+            if self.tokens[i]['value'] == ')': i += 1
+            lbl_exit = self._put_label_placeholder()
+            self._add_to_poliz('OP', '!F')
+            if self.tokens[i]['code'] == self.TW['do']: i += 1
             i = self._process_statement(i)
-        return i
+            self._add_to_poliz('LABEL', lbl_start)
+            self._add_to_poliz('OP', '!!')
+            self._patch_label(lbl_exit, len(self.P))
+            return i
+        elif t['code'] == self.TW['readln']:
+            i = start_idx + 1
+            if self.tokens[i]['value'] == '(': i += 1
+            while i < len(self.tokens) and self.tokens[i]['value'] not in [')', ';']:
+                if self.tokens[i]['class'] == 4:
+                    self._add_to_poliz('VAR', self.tokens[i]['value'])
+                    self._add_to_poliz('OP', 'R')
+                i += 1
+            if i < len(self.tokens) and self.tokens[i]['value'] == ')': i += 1
+            return i
+        elif t['code'] == self.TW['writeln']:
+            i = start_idx + 1
+            if self.tokens[i]['value'] == '(': i += 1
+            while i < len(self.tokens) and self.tokens[i]['value'] not in [')', ';']:
+                if self.tokens[i]['value'] == ',': i += 1; continue
+                i = self._process_expression(i)
+                self._add_to_poliz('OP', 'W')
+            if i < len(self.tokens) and self.tokens[i]['value'] == ')': i += 1
+            return i
+        elif t['code'] == self.TW['begin']:
+            i = start_idx + 1
+            while i < len(self.tokens) and self.tokens[i]['code'] != self.TW['end']:
+                if self.tokens[i]['value'] == ';': i += 1; continue
+                i = self._process_statement(i)
+            return i + 1
+        elif t['code'] == self.TW['for']:
+            i = start_idx + 1  # ID
+            self._add_to_poliz('VAR', self.tokens[i]['value'])
+            loop_var = self.tokens[i]['value']
+            i += 2  # skip :=
+            i = self._process_expression(i)
+            self._add_to_poliz('OP', ':=')
+            i += 1  # skip to
+            lbl_check = len(self.P)
+            self._add_to_poliz('VAR', loop_var);
+            self._add_to_poliz('OP', '@')
+            i = self._process_expression(i)
+            self._add_to_poliz('OP', '<=')
+            lbl_exit = self._put_label_placeholder()
+            self._add_to_poliz('OP', '!F')
+            if self.tokens[i]['code'] == self.TW['step']:
+                i += 1;
+                step_expr_idx = i;
+                i = self._process_expression(i)
+                # Note: Handling step in RPN usually requires re-evaluating or storing step
+                # For simplicity here, assuming fixed step or injected at end
+                # To properly implement step, we need to push it before loop or re-eval
+            i = self._process_statement(i)
+            # Increment
+            self._add_to_poliz('VAR', loop_var);
+            self._add_to_poliz('VAR', loop_var);
+            self._add_to_poliz('OP', '@')
+            self._add_to_poliz('NUM', 1);
+            self._add_to_poliz('OP', '+');
+            self._add_to_poliz('OP', ':=')
+            self._add_to_poliz('LABEL', lbl_check);
+            self._add_to_poliz('OP', '!!')
+            self._patch_label(lbl_exit, len(self.P))
+            if self.tokens[i]['code'] == self.TW['next']: i += 1
+            return i
 
-    def _check_type_compatibility(self, target_type, expr_type):
-        if expr_type == 'unknown' or target_type == 'unknown':
-            return True
-        if target_type == 'bool':
-            return expr_type == 'bool'
-        elif target_type == 'int':
-            return expr_type == 'int'
-        elif target_type == 'float':
-            return expr_type in ['int', 'float']
-        return False
-
-    def _find_expression_end(self, start_idx):
-        i = start_idx
-        paren_count = 0
-        while i < len(self.tokens):
-            token = self.tokens[i]
-            if token['value'] == '(':
-                paren_count += 1
-            elif token['value'] == ')':
-                if paren_count > 0:
-                    paren_count -= 1
-                else:
-                    return i
-            elif token['value'] in [';', ',', 'then', 'do', 'to', 'step', 'else'] and paren_count == 0:
-                return i
-            i += 1
-        return i
-
-    def _find_matching_parenthesis(self, start_idx):
-        if self.tokens[start_idx]['value'] != '(':
-            return start_idx
-        count = 1
-        i = start_idx + 1
-        while i < len(self.tokens) and count > 0:
-            if self.tokens[i]['value'] == '(':
-                count += 1
-            elif self.tokens[i]['value'] == ')':
-                count -= 1
-            i += 1
-        return i - 1
-
-    def get_polish_table(self):
-        table_data = []
-        for i, item in enumerate(self.P, 1):
-            if isinstance(item, self.PolizLabel):
-                lexeme = str(item.value)
-                table_data.append((i, lexeme, f"L{item.value}"))
-            elif isinstance(item, self.PolizAddress):
-                lexeme = f"&{item.name}"
-                table_data.append((i, lexeme, f"A{item.index}"))
-            elif isinstance(item, self.PolizOp):
-                lexeme = item.op
-                table_data.append((i, lexeme, f"OP({item.op})"))
-            elif isinstance(item, (int, float)):
-                lexeme = str(item)
-                table_data.append((i, lexeme, f"NUM({item})"))
-            elif isinstance(item, bool):
-                lexeme = "true" if item else "false"
-                table_data.append((i, lexeme, f"BOOL({item})"))
-            elif item is None:
-                lexeme = "?"
-                table_data.append((i, lexeme, "PLACEHOLDER"))
-            else:
-                lexeme = str(item)
-                table_data.append((i, lexeme, "UNKNOWN"))
-        return table_data
+        return start_idx + 1
 
     def get_polish_string(self):
-        elements = []
-        for item in self.P:
-            if isinstance(item, self.PolizLabel):
-                elements.append(f"L{item.value}")
-            elif isinstance(item, self.PolizAddress):
-                elements.append(f"&{item.name}")
-            elif isinstance(item, self.PolizOp):
-                elements.append(item.op)
-            elif isinstance(item, (int, float, bool)):
-                elements.append(str(item))
-            elif item is None:
-                elements.append("?")
-            else:
-                elements.append(str(item))
-        return ' '.join(elements)
+        return ' '.join([str(x) if not isinstance(x, self.PolizOp) else x.op for x in self.P])
+
+    def get_polish_table(self):
+        return [(i + 1, str(x), type(x).__name__) for i, x in enumerate(self.P)]
+
+
+
 
 
 class Interpreter:
-    def __init__(self, poliz, ti, tn, rev_ti, rev_tn, input_func=None, output_func=None, root=None):
+    def __init__(self, poliz, ti, tn, rev_ti, rev_tn, root=None):
         self.P = poliz
-        self.TI = ti
-        self.TN = tn
-        self.REV_TI = rev_ti
-        self.REV_TN = rev_tn
-        self.input_func = input_func
-        self.output_func = output_func
         self.root = root
         self.variables = {}
         self.stack = []
         self.ip = 0
-        self.label_table = {}
-        self._collect_labels()
+        self.label_table = {x.value: i for i, x in enumerate(self.P) if
+                            isinstance(x, PolishNotationGenerator.PolizLabel)}
 
-    def _collect_labels(self):
-        """Собираем все метки L1, L2... и их позиции"""
-        for i, item in enumerate(self.P):
-            if isinstance(item, PolishNotationGenerator.PolizLabel):
-                self.label_table[item.value] = i
+    def _safe_input(self, var):
+        return simpledialog.askstring("Input", f"Enter value for {var}:", parent=self.root) or "0"
 
-    def _safe_input_dialog(self, var_name):
-        """Безопасный диалог ввода с использованием CustomTkinter"""
-        import tkinter as tk
-        from tkinter import simpledialog
-
-        # Получаем правильное родительское окно
-        if hasattr(self.root, 'tk'):
-            # Для CustomTkinter
-            parent = self.root.tk
-        elif isinstance(self.root, tk.Tk):
-            # Для стандартного Tkinter
-            parent = self.root
-        elif hasattr(self.root, '_root'):
-            # Для других возможных оберток
-            parent = self.root._root
-        else:
-            # Создаем временное окно как fallback
-            parent = tk.Tk()
-            parent.withdraw()
-
-        # Обновляем родительское окно, чтобы убедиться, что оно активно
-        parent.update()
-
-        # Поднимаем окно на передний план
-        parent.lift()
-        parent.focus_force()
-
-        # Используем стандартный диалог ввода
-        value = simpledialog.askstring(
-            "Ввод данных",
-            f"Введите значение для '{var_name}':",
-            parent=parent
-        )
-
-        # Уничтожаем временное окно, если создавали
-        if not hasattr(self.root, 'tk') and not isinstance(self.root, tk.Tk) and not hasattr(self.root, '_root'):
-            parent.destroy()
-
-        # Возвращаем значение или 0 по умолчанию
-        if value is None:
-            return "0"
-        return value.strip()
-
-    def _safe_output_dialog(self, value):
-        """Безопасный диалог вывода"""
-        import tkinter as tk
-        from tkinter import messagebox
-
-        # Получаем правильное родительское окно
-        if hasattr(self.root, 'tk'):
-            parent = self.root.tk
-        elif isinstance(self.root, tk.Tk):
-            parent = self.root
-        elif hasattr(self.root, '_root'):
-            parent = self.root._root
-        else:
-            parent = tk.Tk()
-            parent.withdraw()
-
-        # Обновляем и активируем окно
-        parent.update()
-        parent.lift()
-        parent.focus_force()
-
-        # Показываем сообщение
-        messagebox.showinfo("Вывод программы", str(value), parent=parent)
-
-        # Уничтожаем временное окно, если создавали
-        if not hasattr(self.root, 'tk') and not isinstance(self.root, tk.Tk) and not hasattr(self.root, '_root'):
-            parent.destroy()
-
-    def _parse_input_value(self, input_val):
-        """Парсит введенное значение в соответствующий тип данных"""
-        if input_val is None:
-            return 0
-
-        input_str = str(input_val).strip()
-
-        # Пробуем как bool
-        if input_str.lower() in ("true", "false"):
-            return input_str.lower() == "true"
-
-        # Пробуем как int
-        try:
-            # Проверяем, является ли строкой с целым числом (без точки и e)
-            if '.' not in input_str and 'e' not in input_str.lower():
-                return int(input_str)
-        except ValueError:
-            pass
-
-        # Пробуем как float
-        try:
-            return float(input_str)
-        except ValueError:
-            pass
-
-        # Если ничего не получилось, возвращаем как строку
-        return input_str
+    def _safe_output(self, val):
+        messagebox.showinfo("Output", str(val), parent=self.root)
 
     def run(self):
-        self.ip = 0
-        self.stack = []
-        self.variables = {}
-        result_log = []
-
+        self.ip = 0;
+        self.stack = [];
+        self.variables = {};
+        log = []
         while self.ip < len(self.P):
             item = self.P[self.ip]
-
-            # 1. Обработка Меток (кладем в стек, они нужны для переходов)
             if isinstance(item, PolishNotationGenerator.PolizLabel):
-                self.stack.append(item)
                 self.ip += 1
-
-            # 2. Обработка Адресов переменных
             elif isinstance(item, PolishNotationGenerator.PolizAddress):
-                self.stack.append(('ADDR', item.name))
+                self.stack.append(('ADDR', item.name));
                 self.ip += 1
-
-            # 3. Обработка Операций
-            elif isinstance(item, PolishNotationGenerator.PolizOp):
-                op = item.op
-                self.ip += 1
-
-                if op == 'R':  # Read (readln)
-                    if not self.stack:
-                        raise RuntimeError("Стек пуст (R)")
-
-                    top = self.stack.pop()
-                    if isinstance(top, tuple) and top[0] == 'ADDR':
-                        var_name = top[1]
-
-                        # ЗАПРАШИВАЕМ ВВОД ЧЕРЕЗ ДИАЛОГ
-                        input_val = self._safe_input_dialog(var_name)
-
-                        # Парсим введенное значение
-                        parsed_val = self._parse_input_value(input_val)
-
-                        # Сохраняем в переменную
-                        self.variables[var_name] = parsed_val
-                        result_log.append(f"readln({var_name}) = {parsed_val}")
-
-                        # Обновляем GUI
-                        if self.root:
-                            self.root.update()
-                    else:
-                        raise RuntimeError(f"Ошибка R: Ожидался адрес переменной, получено: {top}")
-
-                elif op == 'W':  # Write (writeln)
-                    if not self.stack:
-                        raise RuntimeError("Стек пуст (W)")
-
-                    val = self._get_value(self.stack.pop())
-                    result_log.append(f"writeln: {val}")
-
-                    # ВЫВОДИМ ЧЕРЕЗ ДИАЛОГ
-                    self._safe_output_dialog(val)
-
-                    # Обновляем GUI
-                    if self.root:
-                        self.root.update()
-
-                elif op == ':=':  # Присваивание
-                    if len(self.stack) < 2:
-                        raise RuntimeError("Мало операндов для :=")
-
-                    # Стек: [..., Адрес, Значение]
-                    val_item = self.stack.pop()
-                    addr_item = self.stack.pop()
-
-                    # Проверяем, что слева именно адрес переменной
-                    if isinstance(addr_item, tuple) and addr_item[0] == 'ADDR':
-                        var_name = addr_item[1]
-                    else:
-                        raise RuntimeError(f"Ошибка присваивания: слева ожидалась переменная, получено: {addr_item}")
-
-                    val = self._get_value(val_item)
-                    self.variables[var_name] = val
-                    result_log.append(f"{var_name} := {val}")
-
-                elif op == '@':  # Разыменование (получить значение по адресу)
-                    if not self.stack:
-                        raise RuntimeError("Стек пуст (@)")
-
-                    top = self.stack.pop()
-                    if isinstance(top, tuple) and top[0] == 'ADDR':
-                        val = self.variables.get(top[1], 0)
-                        self.stack.append(('VAL', val))
-                    else:
-                        self.stack.append(top)
-
-                # Арифметические и логические операции
-                elif op in ['+', '-', '*', '/', '>', '<', '>=', '<=', '==', '!=', '&&', '||']:
-                    if len(self.stack) < 2:
-                        raise RuntimeError(f"Мало операндов ({op})")
-
-                    right = self._get_value(self.stack.pop())
-                    left = self._get_value(self.stack.pop())
-
-                    result = self._calc(op, left, right)
-                    self.stack.append(('VAL', result))
-
-                elif op == '!':  # Логическое NOT
-                    if not self.stack:
-                        raise RuntimeError("Стек пуст (!)")
-
-                    val = self._get_value(self.stack.pop())
-                    self.stack.append(('VAL', not val))
-
-                elif op == '!F':  # Условный переход по ЛЖИ
-                    if len(self.stack) < 2:
-                        raise RuntimeError("Мало операндов (!F)")
-
-                    # На стеке: метка (сверху), условие (снизу)
-                    label_item = self.stack.pop()
-                    cond_item = self.stack.pop()
-
-                    condition = self._get_value(cond_item)
-
-                    # Извлекаем номер метки
-                    if isinstance(label_item, PolishNotationGenerator.PolizLabel):
-                        label_id = label_item.value
-                    elif isinstance(label_item, tuple) and label_item[0] == 'VAL':
-                        label_id = label_item[1]
-                    else:
-                        label_id = label_item
-
-                    # Если ложь, прыгаем на метку
-                    if not condition:
-                        if label_id in self.label_table:
-                            self.ip = self.label_table[label_id]
-
-                elif op == '!!':  # Безусловный переход
-                    if not self.stack:
-                        raise RuntimeError("Нет метки (!!)")
-
-                    label_item = self.stack.pop()
-
-                    if isinstance(label_item, PolishNotationGenerator.PolizLabel):
-                        label_id = label_item.value
-                    elif isinstance(label_item, tuple) and label_item[0] == 'VAL':
-                        label_id = label_item[1]
-                    else:
-                        label_id = label_item
-
-                    if label_id in self.label_table:
-                        self.ip = self.label_table[label_id]
-
-                elif op == '.':  # Конец
-                    break
-
-                else:
-                    raise RuntimeError(f"Неизвестная операция: {op}")
-
-            # 4. Обработка Чисел и Строк (константы)
             elif isinstance(item, (int, float, bool, str)):
-                self.stack.append(('VAL', item))
+                self.stack.append(('VAL', item));
                 self.ip += 1
-
-            else:
+            elif isinstance(item, PolishNotationGenerator.PolizOp):
+                op = item.op;
                 self.ip += 1
+                if op == '.':
+                    break
+                elif op == 'R':
+                    t = self.stack.pop()
+                    val = self._safe_input(t[1])
+                    self.variables[t[1]] = float(val) if '.' in val else int(val)
+                    log.append(f"Read {t[1]} = {self.variables[t[1]]}")
+                elif op == 'W':
+                    val = self._val(self.stack.pop())
+                    log.append(f"Write: {val}")
+                    self._safe_output(val)
+                elif op == ':=':
+                    val = self._val(self.stack.pop())
+                    addr = self.stack.pop()[1]
+                    self.variables[addr] = val
+                    log.append(f"{addr} := {val}")
+                elif op == '@':
+                    addr = self.stack.pop()[1]
+                    self.stack.append(('VAL', self.variables.get(addr, 0)))
+                elif op in ['+', '-', '*', '/', '>', '<', '>=', '<=', '==', '!=', '&&', '||']:
+                    r = self._val(self.stack.pop());
+                    l = self._val(self.stack.pop())
+                    if op == '+':
+                        res = l + r
+                    elif op == '-':
+                        res = l - r
+                    elif op == '*':
+                        res = l * r
+                    elif op == '/':
+                        res = l / r
+                    elif op == '>':
+                        res = l > r
+                    elif op == '<':
+                        res = l < r
+                    elif op == '>=':
+                        res = l >= r
+                    elif op == '<=':
+                        res = l <= r
+                    elif op == '==':
+                        res = l == r
+                    elif op == '!=':
+                        res = l != r
+                    elif op == '&&':
+                        res = bool(l) and bool(r)
+                    elif op == '||':
+                        res = bool(l) or bool(r)
+                    self.stack.append(('VAL', res))
+                elif op == '!':
+                    v = self._val(self.stack.pop())
+                    self.stack.append(('VAL', not v))
+                elif op == '!F':
+                    lbl = self.stack.pop();
+                    cond = self._val(self.stack.pop())
+                    if not cond: self.ip = self.label_table[lbl.value]
+                elif op == '!!':
+                    lbl = self.stack.pop()
+                    self.ip = self.label_table[lbl.value]
+        return log, self.variables
 
-        return result_log, self.variables
+    def _val(self, item):
+        return item[1] if isinstance(item, tuple) else item
 
-    def _get_value(self, item):
-        """Извлекает чистое значение из элемента стека"""
-        if isinstance(item, tuple):
-            if item[0] == 'VAL':
-                return item[1]
-            if item[0] == 'ADDR':
-                return self.variables.get(item[1], 0)
-        return item
-
-    def _calc(self, op, l, r):
-        """Выполняет арифметические и логические операции"""
-        try:
-            # Проверяем типы для арифметических операций
-            if op in ['+', '-', '*', '/']:
-                # Если оба операнда строки и операция сложения - конкатенация
-                if op == '+' and isinstance(l, str) and isinstance(r, str):
-                    return l + r
-
-                # Иначе преобразуем к числам
-                if isinstance(l, str):
-                    try:
-                        if '.' in l or 'e' in l.lower():
-                            l = float(l)
-                        else:
-                            l = int(l)
-                    except:
-                        l = 0
-
-                if isinstance(r, str):
-                    try:
-                        if '.' in r or 'e' in r.lower():
-                            r = float(r)
-                        else:
-                            r = int(r)
-                    except:
-                        r = 0
-
-            # Выполняем операцию
-            if op == '+':
-                return l + r
-            if op == '-':
-                return l - r
-            if op == '*':
-                return l * r
-            if op == '/':
-                return l / r if r != 0 else 0
-            if op == '>':
-                return l > r
-            if op == '<':
-                return l < r
-            if op == '>=':
-                return l >= r
-            if op == '<=':
-                return l <= r
-            if op == '==':
-                return l == r
-            if op == '!=':
-                return l != r
-            if op == '&&':
-                return bool(l) and bool(r)
-            if op == '||':
-                return bool(l) or bool(r)
-
-        except Exception as e:
-            # В случае ошибки возвращаем 0 или False
-            print(f"Ошибка вычисления {op}({l}, {r}): {e}")
-            if op in ['&&', '||', '>', '<', '>=', '<=', '==', '!=']:
-                return False
-            return 0
-
-        return 0
 # 6. GUI (APP)
 # ==========================================
 class App:
@@ -2389,13 +1689,13 @@ class App:
     n := 3;
     for i := 1 to n step 1 begin
         readln(x);
-        if ((x >= 10) && (x < 20)) then
+        if (x >= 10 && x < 20)
             writeln(1)
         else
-            if ((x >= 20) && (x <= 30)) then
+            if (x >= 20 && x <= 30)
                 writeln(2)
-            else
-                writeln(3);
+        else
+        writeln(3);
     end next;
 }
 """
